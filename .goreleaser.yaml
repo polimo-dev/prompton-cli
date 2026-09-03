@@ -1,0 +1,115 @@
+# GoReleaser builds the archives that install.sh downloads.
+#
+#   goreleaser check                 validate this file
+#   goreleaser release --snapshot --clean   build locally without publishing
+#   git tag v0.1.0 && git push --tags       cut a real release (CI runs goreleaser)
+version: 2
+
+project_name: prompton
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+
+builds:
+  - id: prompton
+    main: .
+    binary: prompton
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/polimo-dev/prompton-cli/internal/meta.Version={{ .Version }}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      # Windows on arm64 is not a target the CLI is asked for yet.
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: prompton
+    ids:
+      - prompton
+    # install.sh derives this name from uname, so the shape is a contract.
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# The rolling main build (.github/workflows/main-build.yml) is a snapshot, so
+# its archives are named after this: prompton_0.0.0-main.1a2b3c4_darwin_arm64
+# — the nearest release tag plus the short commit. install.sh matches the
+# archive by os/arch in the release's asset list rather than guessing this.
+snapshot:
+  version_template: "{{ .Version }}-main.{{ .ShortCommit }}"
+
+git:
+  # main-latest is the rolling pre-release tag that main-build.yml force-moves
+  # to every main commit. It is reachable from HEAD on every build, so without
+  # this GoReleaser would read it as the current version.
+  ignore_tags:
+    - main-latest
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  # Named explicitly so `goreleaser check` works in a clone with no remote yet.
+  github:
+    owner: polimo-dev
+    name: prompton-cli
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Install
+
+    ```sh
+    curl -fsSL https://prompton.ai/install.sh | sh
+    ```
+
+    or `brew install polimo-dev/tap/prompton`.
+
+homebrew_casks:
+  # Publishes the cask to github.com/polimo-dev/homebrew-tap so that
+  # `brew install polimo-dev/tap/prompton` works. The tap repository must exist
+  # before the first tag, and the release workflow needs HOMEBREW_TAP_TOKEN — a
+  # token with write access to that repository (the default GITHUB_TOKEN cannot
+  # push to another repo). Without the token the release still succeeds and
+  # only the cask upload is skipped.
+  - name: prompton
+    ids:
+      - prompton
+    binaries:
+      - prompton
+    repository:
+      owner: polimo-dev
+      name: homebrew-tap
+      branch: main
+      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}false{{ else }}true{{ end }}'
+    homepage: https://github.com/polimo-dev/prompton-cli
+    description: Provision and operate PromptOn from the command line
+    license: Apache-2.0

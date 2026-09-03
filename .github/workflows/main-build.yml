@@ -1,0 +1,96 @@
+name: Main build
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: main-build
+  cancel-in-progress: false
+
+jobs:
+  rolling:
+    name: snapshot to main-latest
+    runs-on: ubuntu-latest
+    env:
+      TAG: main-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Build the archives
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+
+      - name: Read the snapshot version
+        id: snapshot
+        run: |
+          version=$(jq -r .version dist/metadata.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "snapshot version: $version"
+          ls -1 dist/*.tar.gz dist/*.zip dist/checksums.txt
+
+      - name: Move the main-latest tag to this commit
+        run: |
+          git tag -f "$TAG" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$TAG"
+
+      - name: Remove the previous build's assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" --json assets --jq '.assets[].name' > previous-assets.txt 2>/dev/null; then
+            while IFS= read -r name; do
+              [ -n "$name" ] || continue
+              echo "deleting $name"
+              gh release delete-asset "$TAG" "$name" --yes
+            done < previous-assets.txt
+          else
+            echo "no $TAG release yet; the next step creates it"
+          fi
+
+      - name: Publish the rolling pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: main-latest
+          name: main (rolling)
+          prerelease: true
+          make_latest: false
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          body: |
+            Rolling build of `main`, rebuilt on every push: this release is
+            updated in place and its tag `main-latest` always points at the
+            newest commit.
+
+            - Commit: ${{ github.sha }}
+            - Version: `${{ steps.snapshot.outputs.version }}`
+
+            Install this build:
+
+            ```sh
+            PTN_VERSION=main sh -c "$(curl -fsSL https://prompton.ai/install.sh)"
+            ```
+
+            Until the first tagged release, `curl -fsSL https://prompton.ai/install.sh | sh`
+            installs this build as well.
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt

@@ -1,0 +1,14 @@
+# Build output
+/dist/
+/prompton
+/prompton.exe
+
+# Test and coverage artifacts
+*.out
+*.test
+coverage.html
+
+# Editor and OS noise
+.DS_Store
+.idea/
+.vscode/
