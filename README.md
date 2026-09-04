@@ -11,11 +11,11 @@ turns "already exists" into something a re-run can survive.
 
 ```
 prompton login
-prompton projects create heydiary
-prompton use-cases create diary_generation --kind chat
-prompton prompts commit diary_generation default --file messages.json
-prompton deploy diary_generation --model anthropic/claude-sonnet-4
-prompton api-keys issue --name 'HeyDiary server'
+prompton projects create helpdesk
+prompton use-cases create support_reply --kind chat
+prompton prompts commit support_reply default --file messages.json
+prompton deploy support_reply --model openai/gpt-4o-mini
+prompton api-keys issue --name 'Helpdesk server'
 ```
 
 ---
@@ -102,7 +102,7 @@ Paths in the API are organization-scoped, so every command needs to know which
 organization it is acting in, and most also need a project. Set them once:
 
 ```sh
-prompton use --org acme-inc --project heydiary
+prompton use --org acme --project helpdesk
 prompton use --org personal            # your personal organization
 ```
 
@@ -124,8 +124,8 @@ configuration instead of carrying it.
 
 ```sh
 prompton login
-prompton projects create heydiary --name HeyDiary --timezone Asia/Seoul
-prompton use --project heydiary
+prompton projects create helpdesk --name Helpdesk --timezone Etc/UTC
+prompton use --project helpdesk
 ```
 
 `production` (protected) and `staging` environments are created with the
@@ -137,10 +137,10 @@ One use case for each place the app calls an LLM. The key is the app's
 contract and cannot be changed later.
 
 ```sh
-prompton use-cases create diary_generation \
+prompton use-cases create support_reply \
   --kind chat \
-  --name 'Diary generation' \
-  --description 'Turns a day of voice notes into a diary entry' \
+  --name 'Support reply' \
+  --description 'Answers a customer message in the support inbox' \
   --input-schema-file schema.json \
   --default-params '{"temperature":0.5}'
 ```
@@ -149,8 +149,10 @@ prompton use-cases create diary_generation \
 
 ```json
 [
-  {"name": "transcriptions", "type": "list", "required": true,
-   "description": "Today's voice notes, oldest first"}
+  {"name": "question", "type": "string", "required": true,
+   "description": "The customer's message"},
+  {"name": "plan", "type": "string", "required": false,
+   "description": "free or pro"}
 ]
 ```
 
@@ -160,7 +162,7 @@ the use case. `--kind embedding` has no prompts at all.
 ### 3. Commit the app's existing prompt as version 1
 
 ```sh
-prompton prompts commit diary_generation default \
+prompton prompts commit support_reply default \
   --file messages.json \
   --message "migrated from the app's hardcoded prompt"
 ```
@@ -169,8 +171,8 @@ prompton prompts commit diary_generation default \
 
 ```json
 [
-  {"role": "system", "content": "You write diaries."},
-  {"role": "user", "content": "{% for t in transcriptions %}{{ t }}\n{% endfor %}"}
+  {"role": "system", "content": "You are a friendly support agent for Acme. Answer in two or three sentences; if you are not sure, say so and offer to escalate."},
+  {"role": "user", "content": "{{ question }}"}
 ]
 ```
 
@@ -183,8 +185,8 @@ Open more prompt names when one use case serves several variants. The name is
 what the app sends as its `prompt` parameter:
 
 ```sh
-prompton prompts open diary_generation ko --description Korean
-prompton prompts commit diary_generation ko --file messages.ko.json
+prompton prompts open support_reply ko --description Korean
+prompton prompts commit support_reply ko --file messages.ko.json
 ```
 
 Versions are immutable, and committing one changes nothing at runtime. A
@@ -193,12 +195,12 @@ version goes live only when a deployment pins it.
 ### 4. Pin a deployment — the app's current model, unchanged
 
 ```sh
-prompton models register anthropic/claude-sonnet-4    # optional; deploy does it too
+prompton models register openai/gpt-4o-mini    # optional; deploy does it too
 
-prompton deploy diary_generation \
+prompton deploy support_reply \
   --environment production \
-  --model anthropic/claude-sonnet-4 \
-  --params '{"temperature":0.4}' \
+  --model openai/gpt-4o-mini \
+  --params '{"temperature":0.3}' \
   --pin default=1 \
   --pin ko=latest
 ```
@@ -213,12 +215,13 @@ prompt name. Committing it makes it the live configuration for that
   UUID. Omit `--pin` entirely to pin the newest committed version of every
   prompt.
 - Promoting staging to production is the same command with a different
-  `--environment` and the same pins.
+  `--environment` and the same pins — staging can carry its own params, say
+  `--params '{"temperature":0.7}'` against the same model.
 
 ### 5. Issue the runtime key
 
 ```sh
-prompton api-keys issue --name 'HeyDiary server' --scopes resolve,logs
+prompton api-keys issue --name 'Helpdesk server' --scopes resolve,logs
 ```
 
 The secret is printed once and never again. It is scoped to this project and
@@ -243,7 +246,7 @@ Confirm onboarding is done by resolving with the runtime key:
 ```sh
 curl -sS -H "Authorization: Bearer $PTN_KEY" \
   -H 'content-type: application/json' \
-  -d '{"use_case": "diary_generation"}' \
+  -d '{"use_case": "support_reply"}' \
   https://app.prompton.ai/api/v1/resolve
 ```
 
@@ -260,10 +263,10 @@ prompton provider-key status
 ### 8. Operate
 
 ```sh
-prompton use-cases get diary_generation           # what is live right now
-prompton deployments list diary_generation
-prompton deployments list diary_generation --environment production   # history
-prompton rollback diary_generation --environment production --revision 2
+prompton use-cases get support_reply           # what is live right now
+prompton deployments list support_reply
+prompton deployments list support_reply --environment production   # history
+prompton rollback support_reply --environment production --revision 2
 ```
 
 Rolling back re-commits an old revision, so it produces a new, higher revision
@@ -343,7 +346,7 @@ that: progress lines move to stderr, so `prompton … --json | jq` is always
 safe.
 
 ```sh
-prompton use-cases get diary_generation --json | jq -r '.deployments[].model'
+prompton use-cases get support_reply --json | jq -r '.deployments[].model'
 prompton projects list --json | jq -r '.projects[].slug'
 ```
 
@@ -377,16 +380,16 @@ existing resource in the error. The CLI prints that resource either way; the
 flag decides the exit code:
 
 ```sh
-prompton projects create heydiary                # exit 1, "already exists"
-prompton projects create heydiary --idempotent   # exit 0, prints the existing project
+prompton projects create helpdesk                # exit 1, "already exists"
+prompton projects create helpdesk --idempotent   # exit 0, prints the existing project
 ```
 
 So a provisioning script runs cleanly the second time:
 
 ```sh
 set -e
-prompton projects create heydiary --idempotent --json > project.json
-prompton use-cases create diary_generation --kind chat --idempotent --json > uc.json
+prompton projects create helpdesk --idempotent --json > project.json
+prompton use-cases create support_reply --kind chat --idempotent --json > uc.json
 ```
 
 ### Quiet output
@@ -413,10 +416,10 @@ because it holds a token. `$XDG_CONFIG_HOME` is honoured when set.
   "user": {"id": "0192…", "email": "ada@example.com"},
   "organizations": [
     {"id": "0192…", "name": "Ada", "personal": true},
-    {"id": "0192…", "name": "Acme Inc", "slug": "acme-inc", "personal": false}
+    {"id": "0192…", "name": "Acme", "slug": "acme", "personal": false}
   ],
-  "org": "acme-inc",
-  "project": "heydiary"
+  "org": "acme",
+  "project": "helpdesk"
 }
 ```
 
@@ -434,12 +437,12 @@ because it holds a token. `$XDG_CONFIG_HOME` is honoured when set.
 ### Precedence
 
 **Flag beats environment beats config file beats built-in default.** So a
-one-off `--org acme-inc` never disturbs what `prompton use` stored, and CI can
+one-off `--org acme` never disturbs what `prompton use` stored, and CI can
 set `PTN_TOKEN` without a config file existing at all:
 
 ```sh
-PTN_TOKEN=$CI_SECRET PTN_ORG=acme-inc \
-  prompton deploy diary_generation --model anthropic/claude-sonnet-4 --json
+PTN_TOKEN=$CI_SECRET PTN_ORG=acme \
+  prompton deploy support_reply --model openai/gpt-4o-mini --json
 ```
 
 ---

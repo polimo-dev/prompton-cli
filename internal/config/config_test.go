@@ -80,7 +80,7 @@ func TestLoadPrefersFlagsOverEnvOverFile(t *testing.T) {
 }
 
 func TestLoadFallsBackToFileThenDefault(t *testing.T) {
-	writeConfig(t, config.File{Org: "acme-inc"})
+	writeConfig(t, config.File{Org: "acme"})
 	for _, key := range []string{"PTN_HOST", "PTN_TOKEN", "PTN_ORG", "PTN_PROJECT"} {
 		t.Setenv(key, "")
 	}
@@ -89,7 +89,7 @@ func TestLoadFallsBackToFileThenDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Org != "acme-inc" {
+	if cfg.Org != "acme" {
 		t.Errorf("Org = %q, want the file value", cfg.Org)
 	}
 	if cfg.Host != meta.DefaultHost {
@@ -205,8 +205,8 @@ func TestClearedKeepsHostOnly(t *testing.T) {
 	got := config.Cleared(config.File{
 		Host:    "https://self.hosted",
 		Token:   "secret",
-		Org:     "acme-inc",
-		Project: "heydiary",
+		Org:     "acme",
+		Project: "helpdesk",
 		User:    &config.User{ID: "u1", Email: "ada@example.com"},
 	})
 	if got.Host != "https://self.hosted" {
@@ -222,8 +222,8 @@ func TestOrgRefUsesPersonalLiteral(t *testing.T) {
 	if personal.Ref() != "personal" {
 		t.Errorf("personal org Ref = %q, want %q", personal.Ref(), "personal")
 	}
-	team := config.Org{ID: "o2", Name: "Acme", Slug: "acme-inc"}
-	if team.Ref() != "acme-inc" {
+	team := config.Org{ID: "o2", Name: "Acme", Slug: "acme"}
+	if team.Ref() != "acme" {
 		t.Errorf("team org Ref = %q, want its slug", team.Ref())
 	}
 }
@@ -231,13 +231,13 @@ func TestOrgRefUsesPersonalLiteral(t *testing.T) {
 func TestFindOrg(t *testing.T) {
 	orgs := []config.Org{
 		{ID: "o1", Name: "Ada", Personal: true},
-		{ID: "o2", Name: "Acme Inc", Slug: "acme-inc"},
+		{ID: "o2", Name: "Acme", Slug: "acme"},
 	}
 	for _, tc := range []struct{ ref, want string }{
 		{"personal", "o1"},
-		{"acme-inc", "o2"},
+		{"acme", "o2"},
 		{"o2", "o2"},
-		{"Acme Inc", "o2"},
+		{"Acme", "o2"},
 	} {
 		got, ok := config.FindOrg(orgs, tc.ref)
 		if !ok {
@@ -257,7 +257,7 @@ func TestDefaultOrgOnlyWhenUnambiguous(t *testing.T) {
 	if got, ok := config.DefaultOrg(one); !ok || got.Ref() != "personal" {
 		t.Errorf("a single org must be adopted automatically, got %+v ok=%v", got, ok)
 	}
-	two := []config.Org{{ID: "o1", Personal: true}, {ID: "o2", Slug: "acme-inc"}}
+	two := []config.Org{{ID: "o1", Personal: true}, {ID: "o2", Slug: "acme"}}
 	if _, ok := config.DefaultOrg(two); ok {
 		t.Error("with two orgs the CLI must not guess")
 	}

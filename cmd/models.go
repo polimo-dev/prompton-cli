@@ -67,7 +67,7 @@ func newModelsRegisterCommand(g *globals) *cobra.Command {
 		Use:   "register <model-id>",
 		Short: "Add a provider model to the catalog",
 		Long: `Register a model by its provider-side id, for example
-"anthropic/claude-sonnet-4".
+"openai/gpt-4o-mini".
 
 For OpenRouter models the server fills in display name, pricing, context length
 and capabilities from the public catalog; registration still succeeds if that
@@ -75,7 +75,7 @@ lookup fails.
 
 The catalog UUID this prints is what a deployment pins — ` + "`deploy --model`" +
 			` accepts either that UUID or the provider string.`,
-		Example: "  " + meta.Name + " models register anthropic/claude-sonnet-4",
+		Example: "  " + meta.Name + " models register openai/gpt-4o-mini",
 		Args:    exactArgs(1, "<model-id>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := g.client()

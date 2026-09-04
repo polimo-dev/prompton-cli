@@ -91,12 +91,12 @@ func TestTablePrintsHeaderEvenWithNoRows(t *testing.T) {
 
 func TestTableDropsTheHeaderUnderQuiet(t *testing.T) {
 	p, out, _ := newPrinter(false, true)
-	p.Table([]string{"SLUG"}, [][]string{{"heydiary"}})
+	p.Table([]string{"SLUG"}, [][]string{{"helpdesk"}})
 	got := out.String()
 	if strings.Contains(got, "SLUG") {
 		t.Errorf("quiet output should be values only, got %q", got)
 	}
-	if !strings.Contains(got, "heydiary") {
+	if !strings.Contains(got, "helpdesk") {
 		t.Errorf("stdout = %q", got)
 	}
 }
@@ -175,7 +175,8 @@ func TestDateTrimsToMinutes(t *testing.T) {
 }
 
 func TestTruncateCountsRunes(t *testing.T) {
-	if got := output.Truncate("일기예보입니다", 4); got != "일기예…" {
+	// Korean, from the `ko` prompt example: Truncate counts runes, not bytes.
+	if got := output.Truncate("고객지원상담원", 4); got != "고객지…" {
 		t.Errorf("Truncate = %q", got)
 	}
 	if got := output.Truncate("short", 10); got != "short" {
@@ -197,12 +198,12 @@ func TestJoinAndBool(t *testing.T) {
 
 func TestFieldsAligns(t *testing.T) {
 	p, out, _ := newPrinter(false, false)
-	p.Fields([][2]string{{"Slug", "heydiary"}, {"Timezone", "Etc/UTC"}})
+	p.Fields([][2]string{{"Slug", "helpdesk"}, {"Timezone", "Etc/UTC"}})
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("output = %q", out.String())
 	}
-	if !strings.HasPrefix(lines[0], "Slug") || !strings.Contains(lines[0], "heydiary") {
+	if !strings.HasPrefix(lines[0], "Slug") || !strings.Contains(lines[0], "helpdesk") {
 		t.Errorf("line = %q", lines[0])
 	}
 }

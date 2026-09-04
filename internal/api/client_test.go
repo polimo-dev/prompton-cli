@@ -175,7 +175,7 @@ func TestPollDeviceTokenSuccess(t *testing.T) {
 	  "user": {"id": "0192a3b4-user", "email": "ada@example.com"},
 	  "organizations": [
 	    {"id": "0192-personal", "name": "Ada", "slug": null, "personal": true},
-	    {"id": "0192-acme", "name": "Acme Inc", "slug": "acme-inc", "personal": false}
+	    {"id": "0192-acme", "name": "Acme", "slug": "acme", "personal": false}
 	  ]
 	}`)
 
@@ -203,7 +203,7 @@ func TestPollDeviceTokenSuccess(t *testing.T) {
 	if ref := got.Orgs[0].Ref(); ref != "personal" {
 		t.Errorf("a null-slug personal org must address as %q, got %q", "personal", ref)
 	}
-	if ref := got.Orgs[1].Ref(); ref != "acme-inc" {
+	if ref := got.Orgs[1].Ref(); ref != "acme" {
 		t.Errorf("a team org must address as its slug, got %q", ref)
 	}
 }
@@ -258,14 +258,14 @@ func TestRevokeSession(t *testing.T) {
 func TestListOrgs(t *testing.T) {
 	s := newStub(t, 200, `{"organizations":[
 	  {"id":"o1","name":"Ada","slug":null,"personal":true,"created_at":"2026-09-01T09:12:03.123456Z"},
-	  {"id":"o2","name":"Acme Inc","slug":"acme-inc","personal":false}
+	  {"id":"o2","name":"Acme","slug":"acme","personal":false}
 	]}`)
 	got, err := s.client("tok").ListOrgs(ctx())
 	if err != nil {
 		t.Fatalf("ListOrgs: %v", err)
 	}
 	s.expect(http.MethodGet, "/api/v1/orgs")
-	if len(got) != 2 || got[1].Slug != "acme-inc" {
+	if len(got) != 2 || got[1].Slug != "acme" {
 		t.Errorf("ListOrgs = %+v", got)
 	}
 }
@@ -296,22 +296,22 @@ func TestGetOrg(t *testing.T) {
 
 // ---- projects -------------------------------------------------------------
 
-const projectJSON = `{"id":"0192p","slug":"heydiary","name":"HeyDiary","timezone":"Etc/UTC",
+const projectJSON = `{"id":"0192p","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC",
   "created_at":"2026-09-01T10:00:00Z",
   "environments":[{"id":"e1","slug":"production","name":"Production","protected":true},
                   {"id":"e2","slug":"staging","name":"Staging","protected":false}]}`
 
 func TestListProjects(t *testing.T) {
 	s := newStub(t, 200, `{"projects":[`+projectJSON+`]}`)
-	got, err := s.client("tok").ListProjects(ctx(), "acme-inc")
+	got, err := s.client("tok").ListProjects(ctx(), "acme")
 	if err != nil {
 		t.Fatalf("ListProjects: %v", err)
 	}
-	s.expect(http.MethodGet, "/api/v1/orgs/acme-inc/projects")
+	s.expect(http.MethodGet, "/api/v1/orgs/acme/projects")
 	if len(got) != 1 {
 		t.Fatalf("ListProjects = %+v", got)
 	}
-	if got[0].Slug != "heydiary" || len(got[0].Environments) != 2 {
+	if got[0].Slug != "helpdesk" || len(got[0].Environments) != 2 {
 		t.Errorf("project = %+v", got[0])
 	}
 	if !got[0].Environments[0].Protected {
@@ -322,14 +322,14 @@ func TestListProjects(t *testing.T) {
 func TestCreateProject(t *testing.T) {
 	s := newStub(t, 201, projectJSON)
 	got, err := s.client("tok").CreateProject(ctx(), "personal", api.CreateProjectRequest{
-		Key: "heydiary", Name: "HeyDiary", Timezone: "Asia/Seoul",
+		Key: "helpdesk", Name: "Helpdesk", Timezone: "Etc/UTC",
 	})
 	if err != nil {
 		t.Fatalf("CreateProject: %v", err)
 	}
 	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects")
 	body := c.bodyMap(t)
-	if body["key"] != "heydiary" || body["name"] != "HeyDiary" || body["timezone"] != "Asia/Seoul" {
+	if body["key"] != "helpdesk" || body["name"] != "Helpdesk" || body["timezone"] != "Etc/UTC" {
 		t.Errorf("request body = %v", body)
 	}
 	if got.ID != "0192p" {
@@ -339,7 +339,7 @@ func TestCreateProject(t *testing.T) {
 
 func TestCreateProjectOmitsUnsetOptionalFields(t *testing.T) {
 	s := newStub(t, 201, projectJSON)
-	if _, err := s.client("tok").CreateProject(ctx(), "personal", api.CreateProjectRequest{Key: "heydiary"}); err != nil {
+	if _, err := s.client("tok").CreateProject(ctx(), "personal", api.CreateProjectRequest{Key: "helpdesk"}); err != nil {
 		t.Fatalf("CreateProject: %v", err)
 	}
 	body := s.only().bodyMap(t)
@@ -353,25 +353,25 @@ func TestCreateProjectOmitsUnsetOptionalFields(t *testing.T) {
 
 // ---- use cases ------------------------------------------------------------
 
-const useCaseJSON = `{"id":"0192u","key":"diary_generation","name":"Diary generation",
+const useCaseJSON = `{"id":"0192u","key":"support_reply","name":"Support reply",
   "description":null,"kind":"chat",
-  "input_schema":[{"name":"transcriptions","type":"list","required":true,"description":null,"example":null}],
+  "input_schema":[{"name":"question","type":"string","required":true,"description":null,"example":null}],
   "default_params":{"temperature":0.5},"tags":[],"created_at":"2026-09-01T10:05:00Z"}`
 
 func TestListUseCases(t *testing.T) {
 	s := newStub(t, 200, `{"use_cases":[`+useCaseJSON+`]}`)
-	got, err := s.client("tok").ListUseCases(ctx(), "personal", "heydiary")
+	got, err := s.client("tok").ListUseCases(ctx(), "personal", "helpdesk")
 	if err != nil {
 		t.Fatalf("ListUseCases: %v", err)
 	}
-	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/heydiary/use-cases")
-	if len(got) != 1 || got[0].Key != "diary_generation" {
+	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/use-cases")
+	if len(got) != 1 || got[0].Key != "support_reply" {
 		t.Fatalf("ListUseCases = %+v", got)
 	}
 	if got[0].Description != nil {
 		t.Error("a null description must decode as nil, not as an empty string")
 	}
-	if got[0].InputSchema[0].Name != "transcriptions" || !got[0].InputSchema[0].Required {
+	if got[0].InputSchema[0].Name != "question" || !got[0].InputSchema[0].Required {
 		t.Errorf("input schema = %+v", got[0].InputSchema)
 	}
 	if got[0].DefaultParams["temperature"] != 0.5 {
@@ -380,28 +380,28 @@ func TestListUseCases(t *testing.T) {
 }
 
 func TestGetUseCaseCarriesPromptsAndDeployments(t *testing.T) {
-	s := newStub(t, 200, `{"id":"0192u","key":"diary_generation","name":"Diary generation",
+	s := newStub(t, 200, `{"id":"0192u","key":"support_reply","name":"Support reply",
 	  "kind":"chat","input_schema":[],"default_params":{},"tags":[],"created_at":"2026-09-01T10:05:00Z",
 	  "description":null,
 	  "prompts":[
 	    {"id":"p1","name":"default","description":null,"created_at":"2026-09-01T10:06:00Z",
 	     "version_count":2,
-	     "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":["transcriptions"],"created_at":"2026-09-02T…"},
-	                 {"id":"v1","number":1,"message":"migrated from the app","detected_variables":["transcriptions"],"created_at":"2026-09-01T…"}]},
+	     "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":["question"],"created_at":"2026-09-02T…"},
+	                 {"id":"v1","number":1,"message":"migrated from the app","detected_variables":["question"],"created_at":"2026-09-01T…"}]},
 	    {"id":"p2","name":"ko","description":"Korean","created_at":"2026-09-01T10:07:00Z","version_count":0,"versions":[]}
 	  ],
 	  "deployments":[
 	    {"id":"d1","revision":3,"environment":"production","model_id":"m-uuid",
-	     "model":"anthropic/claude-sonnet-4","params":{"temperature":0.4},
-	     "provider_options":{"only":["Anthropic"]},
+	     "model":"openai/gpt-4o-mini","params":{"temperature":0.4},
+	     "provider_options":{"only":["OpenAI"]},
 	     "prompt_pins":{"default":"v2","ko":"v9"},"created_at":"2026-09-02T…"}
 	  ]}`)
 
-	got, err := s.client("tok").GetUseCase(ctx(), "personal", "heydiary", "diary_generation")
+	got, err := s.client("tok").GetUseCase(ctx(), "personal", "helpdesk", "support_reply")
 	if err != nil {
 		t.Fatalf("GetUseCase: %v", err)
 	}
-	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation")
+	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply")
 	if len(got.Prompts) != 2 {
 		t.Fatalf("prompts = %d, want 2", len(got.Prompts))
 	}
@@ -415,21 +415,21 @@ func TestGetUseCaseCarriesPromptsAndDeployments(t *testing.T) {
 
 func TestCreateUseCase(t *testing.T) {
 	s := newStub(t, 201, useCaseJSON)
-	_, err := s.client("tok").CreateUseCase(ctx(), "personal", "heydiary", api.CreateUseCaseRequest{
-		Key:  "diary_generation",
+	_, err := s.client("tok").CreateUseCase(ctx(), "personal", "helpdesk", api.CreateUseCaseRequest{
+		Key:  "support_reply",
 		Kind: "chat",
-		Name: "Diary generation",
+		Name: "Support reply",
 		InputSchema: []api.InputField{
-			{Name: "transcriptions", Type: "list", Required: true},
+			{Name: "question", Type: "string", Required: true},
 		},
 		DefaultParams: map[string]any{"temperature": 0.5},
 	})
 	if err != nil {
 		t.Fatalf("CreateUseCase: %v", err)
 	}
-	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/heydiary/use-cases")
+	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/use-cases")
 	body := c.bodyMap(t)
-	if body["key"] != "diary_generation" || body["kind"] != "chat" {
+	if body["key"] != "support_reply" || body["kind"] != "chat" {
 		t.Errorf("request body = %v", body)
 	}
 	schema, ok := body["input_schema"].([]any)
@@ -437,7 +437,7 @@ func TestCreateUseCase(t *testing.T) {
 		t.Fatalf("input_schema = %v", body["input_schema"])
 	}
 	field := schema[0].(map[string]any)
-	if field["name"] != "transcriptions" || field["required"] != true {
+	if field["name"] != "question" || field["required"] != true {
 		t.Errorf("input_schema field = %v", field)
 	}
 }
@@ -445,12 +445,12 @@ func TestCreateUseCase(t *testing.T) {
 func TestUpdateUseCaseSendsOnlyTheFieldsGiven(t *testing.T) {
 	s := newStub(t, 200, useCaseJSON)
 	name := "Renamed"
-	_, err := s.client("tok").UpdateUseCase(ctx(), "personal", "heydiary", "diary_generation",
+	_, err := s.client("tok").UpdateUseCase(ctx(), "personal", "helpdesk", "support_reply",
 		api.UpdateUseCaseRequest{Name: &name})
 	if err != nil {
 		t.Fatalf("UpdateUseCase: %v", err)
 	}
-	c := s.expect(http.MethodPatch, "/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation")
+	c := s.expect(http.MethodPatch, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply")
 	body := c.bodyMap(t)
 	if len(body) != 1 || body["name"] != "Renamed" {
 		t.Errorf("a PATCH must carry only the changed fields, got %v", body)
@@ -460,7 +460,7 @@ func TestUpdateUseCaseSendsOnlyTheFieldsGiven(t *testing.T) {
 func TestUpdateUseCaseCanClearAField(t *testing.T) {
 	s := newStub(t, 200, useCaseJSON)
 	empty := []string{}
-	_, err := s.client("tok").UpdateUseCase(ctx(), "personal", "heydiary", "k",
+	_, err := s.client("tok").UpdateUseCase(ctx(), "personal", "helpdesk", "k",
 		api.UpdateUseCaseRequest{Tags: &empty})
 	if err != nil {
 		t.Fatalf("UpdateUseCase: %v", err)
@@ -486,12 +486,12 @@ func TestUpdateUseCaseEmpty(t *testing.T) {
 
 func TestCreatePrompt(t *testing.T) {
 	s := newStub(t, 201, `{"id":"p2","name":"ko","description":"Korean","created_at":"2026-09-01T…"}`)
-	got, err := s.client("tok").CreatePrompt(ctx(), "personal", "heydiary", "diary_generation",
+	got, err := s.client("tok").CreatePrompt(ctx(), "personal", "helpdesk", "support_reply",
 		api.CreatePromptRequest{Name: "ko", Description: "Korean"})
 	if err != nil {
 		t.Fatalf("CreatePrompt: %v", err)
 	}
-	s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/prompts")
+	s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/prompts")
 	if got.Name != "ko" {
 		t.Errorf("prompt = %+v", got)
 	}
@@ -499,22 +499,22 @@ func TestCreatePrompt(t *testing.T) {
 
 func TestCommitVersionChat(t *testing.T) {
 	s := newStub(t, 201, `{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid",
-	  "messages":[{"role":"system","content":"You write diaries."},
+	  "messages":[{"role":"system","content":"You are a friendly support agent for Acme. Answer in two or three sentences; if you are not sure, say so and offer to escalate."},
 	              {"role":"user","content":"{{ t }}"}],
-	  "text_template":null,"detected_variables":["transcriptions"],
+	  "text_template":null,"detected_variables":["question"],
 	  "message":"migrated from the app's hardcoded prompt",
 	  "content_sha256":"abc","created_at":"2026-09-01T…"}`)
 
-	got, err := s.client("tok").CommitVersion(ctx(), "personal", "heydiary", "diary_generation", "default",
+	got, err := s.client("tok").CommitVersion(ctx(), "personal", "helpdesk", "support_reply", "default",
 		api.CommitVersionRequest{
-			Messages: []api.Message{{Role: "system", Content: "You write diaries."}},
+			Messages: []api.Message{{Role: "system", Content: "You are a friendly support agent for Acme. Answer in two or three sentences; if you are not sure, say so and offer to escalate."}},
 			Message:  "migrated",
 		})
 	if err != nil {
 		t.Fatalf("CommitVersion: %v", err)
 	}
 	c := s.expect(http.MethodPost,
-		"/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/prompts/default/versions")
+		"/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/prompts/default/versions")
 	body := c.bodyMap(t)
 	if _, ok := body["text_template"]; ok {
 		t.Errorf("a chat commit must not send text_template, body = %v", body)
@@ -529,22 +529,22 @@ func TestCommitVersionChat(t *testing.T) {
 
 func TestCommitVersionText(t *testing.T) {
 	s := newStub(t, 201, `{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid",
-	  "messages":null,"text_template":"일기, 하루","detected_variables":[],
+	  "messages":null,"text_template":"billing, refund","detected_variables":[],
 	  "message":null,"content_sha256":"abc","created_at":"2026-09-01T…"}`)
 
-	got, err := s.client("tok").CommitVersion(ctx(), "personal", "heydiary", "kw", "default",
-		api.CommitVersionRequest{TextTemplate: "일기, 하루"})
+	got, err := s.client("tok").CommitVersion(ctx(), "personal", "helpdesk", "kw", "default",
+		api.CommitVersionRequest{TextTemplate: "billing, refund"})
 	if err != nil {
 		t.Fatalf("CommitVersion: %v", err)
 	}
 	body := s.only().bodyMap(t)
-	if body["text_template"] != "일기, 하루" {
+	if body["text_template"] != "billing, refund" {
 		t.Errorf("request body = %v", body)
 	}
 	if _, ok := body["messages"]; ok {
 		t.Errorf("a text commit must not send messages, body = %v", body)
 	}
-	if got.TextTemplate == nil || *got.TextTemplate != "일기, 하루" {
+	if got.TextTemplate == nil || *got.TextTemplate != "billing, refund" {
 		t.Errorf("text_template = %v", got.TextTemplate)
 	}
 	if got.Message != nil {
@@ -554,47 +554,47 @@ func TestCommitVersionText(t *testing.T) {
 
 // ---- models ---------------------------------------------------------------
 
-const modelJSON = `{"id":"0192m","provider":"openrouter","model_id":"anthropic/claude-sonnet-4",
-  "display_name":"Claude Sonnet 4","metadata":{},"provider_options":{"only":["Anthropic"]},
-  "pricing":{"input_per_m":3.0,"output_per_m":15.0,"currency":"USD","unit":"token"},
-  "context_length":200000,"capabilities":["tools","streaming"],"status":"active",
+const modelJSON = `{"id":"0192m","provider":"openrouter","model_id":"openai/gpt-4o-mini",
+  "display_name":"GPT-4o-mini","metadata":{},"provider_options":{"only":["OpenAI"]},
+  "pricing":{"input_per_m":0.15,"output_per_m":0.6,"currency":"USD","unit":"token"},
+  "context_length":128000,"capabilities":["tools","streaming"],"status":"active",
   "created_at":"2026-09-01T…"}`
 
 func TestListModels(t *testing.T) {
 	s := newStub(t, 200, `{"models":[`+modelJSON+`]}`)
-	got, err := s.client("tok").ListModels(ctx(), "personal", "heydiary")
+	got, err := s.client("tok").ListModels(ctx(), "personal", "helpdesk")
 	if err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}
-	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/heydiary/models")
+	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/models")
 	if len(got) != 1 {
 		t.Fatalf("models = %+v", got)
 	}
 	m := got[0]
-	if m.ID != "0192m" || m.ModelID != "anthropic/claude-sonnet-4" {
+	if m.ID != "0192m" || m.ModelID != "openai/gpt-4o-mini" {
 		t.Errorf("the catalog UUID and the provider string must not be confused: %+v", m)
 	}
-	if m.Pricing == nil || m.Pricing.InputPerM != 3.0 || m.Pricing.OutputPerM != 15.0 {
+	if m.Pricing == nil || m.Pricing.InputPerM != 0.15 || m.Pricing.OutputPerM != 0.6 {
 		t.Errorf("pricing = %+v", m.Pricing)
 	}
-	if m.ContextLength != 200000 || len(m.Capabilities) != 2 {
+	if m.ContextLength != 128000 || len(m.Capabilities) != 2 {
 		t.Errorf("model = %+v", m)
 	}
 }
 
 func TestRegisterModelSendsOnlyModelIDWhenNothingElseIsGiven(t *testing.T) {
 	s := newStub(t, 201, modelJSON)
-	got, err := s.client("tok").RegisterModel(ctx(), "personal", "heydiary",
-		api.RegisterModelRequest{ModelID: "anthropic/claude-sonnet-4"})
+	got, err := s.client("tok").RegisterModel(ctx(), "personal", "helpdesk",
+		api.RegisterModelRequest{ModelID: "openai/gpt-4o-mini"})
 	if err != nil {
 		t.Fatalf("RegisterModel: %v", err)
 	}
-	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/heydiary/models")
+	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/models")
 	body := c.bodyMap(t)
-	if len(body) != 1 || body["model_id"] != "anthropic/claude-sonnet-4" {
+	if len(body) != 1 || body["model_id"] != "openai/gpt-4o-mini" {
 		t.Errorf("request body = %v, want only model_id so the server can fill the rest", body)
 	}
-	if got.DisplayName != "Claude Sonnet 4" {
+	if got.DisplayName != "GPT-4o-mini" {
 		t.Errorf("display name = %q", got.DisplayName)
 	}
 }
@@ -602,17 +602,17 @@ func TestRegisterModelSendsOnlyModelIDWhenNothingElseIsGiven(t *testing.T) {
 // ---- deployments ----------------------------------------------------------
 
 const deploymentJSON = `{"id":"0192d","revision":3,"environment":"production",
-  "model_id":"0192m","model":"anthropic/claude-sonnet-4","params":{"temperature":0.4},
+  "model_id":"0192m","model":"openai/gpt-4o-mini","params":{"temperature":0.4},
   "provider_options":{"allow_fallbacks":false},
   "prompt_pins":{"default":"v2","ko":"v7"},"created_at":"2026-09-02T11:00:00Z"}`
 
 func TestListDeploymentsLive(t *testing.T) {
 	s := newStub(t, 200, `{"deployments":[`+deploymentJSON+`]}`)
-	got, err := s.client("tok").ListDeployments(ctx(), "personal", "heydiary", "diary_generation", "")
+	got, err := s.client("tok").ListDeployments(ctx(), "personal", "helpdesk", "support_reply", "")
 	if err != nil {
 		t.Fatalf("ListDeployments: %v", err)
 	}
-	c := s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments")
+	c := s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments")
 	if c.Query != "" {
 		t.Errorf("without --environment there must be no query string, got %q", c.Query)
 	}
@@ -623,7 +623,7 @@ func TestListDeploymentsLive(t *testing.T) {
 
 func TestListDeploymentsHistoryPassesEnvironment(t *testing.T) {
 	s := newStub(t, 200, `{"deployments":[]}`)
-	if _, err := s.client("tok").ListDeployments(ctx(), "personal", "heydiary", "uc", "staging"); err != nil {
+	if _, err := s.client("tok").ListDeployments(ctx(), "personal", "helpdesk", "uc", "staging"); err != nil {
 		t.Fatalf("ListDeployments: %v", err)
 	}
 	if q := s.only().Query; q != "environment=staging" {
@@ -633,7 +633,7 @@ func TestListDeploymentsHistoryPassesEnvironment(t *testing.T) {
 
 func TestCreateDeploymentWithCatalogUUID(t *testing.T) {
 	s := newStub(t, 201, deploymentJSON)
-	_, err := s.client("tok").CreateDeployment(ctx(), "personal", "heydiary", "diary_generation",
+	_, err := s.client("tok").CreateDeployment(ctx(), "personal", "helpdesk", "support_reply",
 		api.CreateDeploymentRequest{
 			Environment: "production",
 			ModelID:     "0192m",
@@ -643,7 +643,7 @@ func TestCreateDeploymentWithCatalogUUID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateDeployment: %v", err)
 	}
-	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments")
+	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments")
 	body := c.bodyMap(t)
 	if body["model_id"] != "0192m" {
 		t.Errorf("request body = %v", body)
@@ -655,13 +655,13 @@ func TestCreateDeploymentWithCatalogUUID(t *testing.T) {
 
 func TestCreateDeploymentWithProviderString(t *testing.T) {
 	s := newStub(t, 201, deploymentJSON)
-	_, err := s.client("tok").CreateDeployment(ctx(), "personal", "heydiary", "uc",
-		api.CreateDeploymentRequest{Model: "anthropic/claude-sonnet-4"})
+	_, err := s.client("tok").CreateDeployment(ctx(), "personal", "helpdesk", "uc",
+		api.CreateDeploymentRequest{Model: "openai/gpt-4o-mini"})
 	if err != nil {
 		t.Fatalf("CreateDeployment: %v", err)
 	}
 	body := s.only().bodyMap(t)
-	if body["model"] != "anthropic/claude-sonnet-4" {
+	if body["model"] != "openai/gpt-4o-mini" {
 		t.Errorf("request body = %v", body)
 	}
 	if _, ok := body["prompt_pins"]; ok {
@@ -671,16 +671,16 @@ func TestCreateDeploymentWithProviderString(t *testing.T) {
 
 func TestRollback(t *testing.T) {
 	s := newStub(t, 200, `{"id":"0192d","revision":4,"environment":"production","model_id":"0192m",
-	  "model":"anthropic/claude-sonnet-4","params":{},"provider_options":{},
+	  "model":"openai/gpt-4o-mini","params":{},"provider_options":{},
 	  "prompt_pins":{"default":"v1"},"created_at":"2026-09-02T12:00:00Z"}`)
 
-	got, err := s.client("tok").Rollback(ctx(), "personal", "heydiary", "diary_generation",
+	got, err := s.client("tok").Rollback(ctx(), "personal", "helpdesk", "support_reply",
 		api.RollbackRequest{Environment: "production", Revision: 1})
 	if err != nil {
 		t.Fatalf("Rollback: %v", err)
 	}
 	c := s.expect(http.MethodPost,
-		"/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments/rollback")
+		"/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments/rollback")
 	body := c.bodyMap(t)
 	if body["revision"] != float64(1) {
 		t.Errorf("request body = %v", body)
@@ -693,16 +693,16 @@ func TestRollback(t *testing.T) {
 // ---- keys -----------------------------------------------------------------
 
 func TestIssueAPIKeyReturnsTheSecretOnce(t *testing.T) {
-	s := newStub(t, 201, `{"id":"k1","name":"HeyDiary server","key_prefix":"ptn_heydiary_a",
+	s := newStub(t, 201, `{"id":"k1","name":"Helpdesk server","key_prefix":"ptn_helpdesk_a",
 	  "scopes":["resolve","logs"],"last_used_at":null,"created_at":"2026-09-01T…",
-	  "key":"ptn_heydiary_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"}`)
+	  "key":"ptn_helpdesk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"}`)
 
-	got, err := s.client("tok").IssueAPIKey(ctx(), "personal", "heydiary",
-		api.IssueAPIKeyRequest{Name: "HeyDiary server", Scopes: []string{"resolve", "logs"}})
+	got, err := s.client("tok").IssueAPIKey(ctx(), "personal", "helpdesk",
+		api.IssueAPIKeyRequest{Name: "Helpdesk server", Scopes: []string{"resolve", "logs"}})
 	if err != nil {
 		t.Fatalf("IssueAPIKey: %v", err)
 	}
-	s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/heydiary/api-keys")
+	s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/api-keys")
 	if got.Key == "" {
 		t.Fatal("the raw key must be decoded from the create response")
 	}
@@ -712,13 +712,13 @@ func TestIssueAPIKeyReturnsTheSecretOnce(t *testing.T) {
 }
 
 func TestListAPIKeysHasNoSecret(t *testing.T) {
-	s := newStub(t, 200, `{"api_keys":[{"id":"k1","name":"HeyDiary server","key_prefix":"ptn_heydiary_a",
+	s := newStub(t, 200, `{"api_keys":[{"id":"k1","name":"Helpdesk server","key_prefix":"ptn_helpdesk_a",
 	  "scopes":["resolve","logs"],"last_used_at":"2026-09-02T09:00:00Z","created_at":"2026-09-01T…"}]}`)
-	got, err := s.client("tok").ListAPIKeys(ctx(), "personal", "heydiary")
+	got, err := s.client("tok").ListAPIKeys(ctx(), "personal", "helpdesk")
 	if err != nil {
 		t.Fatalf("ListAPIKeys: %v", err)
 	}
-	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/heydiary/api-keys")
+	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/api-keys")
 	if len(got) != 1 || got[0].Key != "" {
 		t.Errorf("api keys = %+v", got)
 	}
@@ -729,11 +729,11 @@ func TestListAPIKeysHasNoSecret(t *testing.T) {
 
 func TestGetProviderKeyDisconnected(t *testing.T) {
 	s := newStub(t, 200, `{"connected":false,"provider":"openrouter"}`)
-	got, err := s.client("tok").GetProviderKey(ctx(), "acme-inc")
+	got, err := s.client("tok").GetProviderKey(ctx(), "acme")
 	if err != nil {
 		t.Fatalf("GetProviderKey: %v", err)
 	}
-	s.expect(http.MethodGet, "/api/v1/orgs/acme-inc/provider-key")
+	s.expect(http.MethodGet, "/api/v1/orgs/acme/provider-key")
 	if got.Connected {
 		t.Errorf("provider key = %+v", got)
 	}
@@ -742,12 +742,12 @@ func TestGetProviderKeyDisconnected(t *testing.T) {
 func TestSetProviderKey(t *testing.T) {
 	s := newStub(t, 201, `{"connected":true,"id":"pk1","provider":"openrouter","label":"default",
 	  "hint":"sk-or-v1-••••4Xa2","last_used_at":null,"created_at":"2026-09-02T…"}`)
-	got, err := s.client("tok").SetProviderKey(ctx(), "acme-inc",
+	got, err := s.client("tok").SetProviderKey(ctx(), "acme",
 		api.SetProviderKeyRequest{Secret: "sk-or-v1-secret", Label: "default"})
 	if err != nil {
 		t.Fatalf("SetProviderKey: %v", err)
 	}
-	c := s.expect(http.MethodPost, "/api/v1/orgs/acme-inc/provider-key")
+	c := s.expect(http.MethodPost, "/api/v1/orgs/acme/provider-key")
 	if body := c.bodyMap(t); body["secret"] != "sk-or-v1-secret" {
 		t.Errorf("request body = %v", body)
 	}
@@ -795,7 +795,7 @@ func TestInvalidRequestHintListsFieldErrors(t *testing.T) {
 func TestNotFoundHintListsAvailableRevisions(t *testing.T) {
 	s := newStub(t, 404, `{"error":{"code":"not_found","message":"no such revision",
 	  "details":{"available_revisions":[1,2,3]}}}`)
-	_, err := s.client("tok").Rollback(ctx(), "personal", "heydiary", "uc", api.RollbackRequest{Revision: 9})
+	_, err := s.client("tok").Rollback(ctx(), "personal", "helpdesk", "uc", api.RollbackRequest{Revision: 9})
 	apiErr, _ := api.AsError(err)
 	if hint := apiErr.Hint(); !strings.Contains(hint, "1, 2, 3") {
 		t.Errorf("Hint() = %q, want the available revisions", hint)
@@ -805,7 +805,7 @@ func TestNotFoundHintListsAvailableRevisions(t *testing.T) {
 func TestNotFoundHintListsAvailablePrompts(t *testing.T) {
 	s := newStub(t, 404, `{"error":{"code":"not_found","message":"no such prompt",
 	  "details":{"available_prompts":["default","ko"]}}}`)
-	_, err := s.client("tok").CommitVersion(ctx(), "personal", "heydiary", "uc", "jp",
+	_, err := s.client("tok").CommitVersion(ctx(), "personal", "helpdesk", "uc", "jp",
 		api.CommitVersionRequest{TextTemplate: "x"})
 	apiErr, _ := api.AsError(err)
 	if hint := apiErr.Hint(); !strings.Contains(hint, "default, ko") {
@@ -815,10 +815,10 @@ func TestNotFoundHintListsAvailablePrompts(t *testing.T) {
 
 func TestConflictCarriesTheExistingResource(t *testing.T) {
 	s := newStub(t, 409, `{"error":{"code":"conflict",
-	  "message":"a project with key heydiary already exists",
+	  "message":"a project with key helpdesk already exists",
 	  "details":{"project":`+projectJSON+`}}}`)
 
-	_, err := s.client("tok").CreateProject(ctx(), "personal", api.CreateProjectRequest{Key: "heydiary"})
+	_, err := s.client("tok").CreateProject(ctx(), "personal", api.CreateProjectRequest{Key: "helpdesk"})
 	apiErr, ok := api.AsError(err)
 	if !ok || apiErr.Code != api.CodeConflict {
 		t.Fatalf("err = %v, want a conflict", err)
@@ -834,7 +834,7 @@ func TestConflictCarriesTheExistingResource(t *testing.T) {
 	if err := json.Unmarshal(raw, &project); err != nil {
 		t.Fatalf("existing resource does not decode: %v", err)
 	}
-	if project.Slug != "heydiary" || len(project.Environments) != 2 {
+	if project.Slug != "helpdesk" || len(project.Environments) != 2 {
 		t.Errorf("existing project = %+v", project)
 	}
 }

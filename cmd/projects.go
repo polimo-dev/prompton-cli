@@ -64,7 +64,7 @@ created with it.
 
 The slug is lowercase letters, digits and hyphens, unique inside the
 organization.`,
-		Example: "  " + meta.Name + " projects create heydiary --name HeyDiary",
+		Example: "  " + meta.Name + " projects create helpdesk --name Helpdesk",
 		Args:    exactArgs(1, "<slug>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := g.client()

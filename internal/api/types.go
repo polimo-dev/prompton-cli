@@ -212,7 +212,7 @@ type Pricing struct {
 
 // Model is one catalog entry. Note the two meanings of "model id": Model.ID is
 // the catalog UUID a deployment pins, Model.ModelID is the provider-side
-// string ("anthropic/claude-sonnet-4").
+// string ("openai/gpt-4o-mini").
 type Model struct {
 	ID              string         `json:"id"`
 	Provider        string         `json:"provider"`

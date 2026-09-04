@@ -147,7 +147,7 @@ need --org and --project.
 
 Both are verified against the server before they are stored, so a typo fails
 here rather than three commands later.`,
-		Example: "  " + meta.Name + " use --org acme-inc --project heydiary\n  " +
+		Example: "  " + meta.Name + " use --org acme --project helpdesk\n  " +
 			meta.Name + " use --org personal",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

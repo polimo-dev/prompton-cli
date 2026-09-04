@@ -36,7 +36,7 @@ instance).
 
 Chat and text use cases already have "default"; opening it again is a
 conflict.`,
-		Example: "  " + meta.Name + " prompts open diary_generation ko --description Korean",
+		Example: "  " + meta.Name + " prompts open support_reply ko --description Korean",
 		Args:    exactArgs(2, "<use-case> <name>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := g.client()
@@ -104,7 +104,7 @@ version goes live when a deployment revision pins it.
 The file is read as chat messages when it holds a JSON array (or an object with
 a "messages" array), and as a text template otherwise. Pass --format to decide
 explicitly, or "-" as the file to read stdin.`,
-		Example: "  " + meta.Name + " prompts commit diary_generation default \\\n" +
+		Example: "  " + meta.Name + " prompts commit support_reply default \\\n" +
 			"      --file messages.json --message 'migrated from the app'",
 		Args: exactArgs(2, "<use-case> <name>"),
 		RunE: func(cmd *cobra.Command, args []string) error {

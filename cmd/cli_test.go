@@ -48,7 +48,7 @@ func TestUnknownFlagIsAUsageError(t *testing.T) {
 
 func TestWrongArgumentCountIsAUsageError(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	got := h.run("use-cases", "get")
 	if got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
@@ -157,12 +157,12 @@ func TestEnvironmentTokenBeatsFile(t *testing.T) {
 func TestFlagOrgBeatsTheConfiguredDefault(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal"})
-	h.handle("/api/v1/orgs/acme-inc/projects", 200, `{"projects":[]}`)
+	h.handle("/api/v1/orgs/acme/projects", 200, `{"projects":[]}`)
 
-	if got := h.run("projects", "list", "--org", "acme-inc"); got.code != 0 {
+	if got := h.run("projects", "list", "--org", "acme"); got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	if h.requests[0].Path != "/api/v1/orgs/acme-inc/projects" {
+	if h.requests[0].Path != "/api/v1/orgs/acme/projects" {
 		t.Errorf("path = %q, want the flag org", h.requests[0].Path)
 	}
 }
@@ -222,7 +222,7 @@ func TestLoginWithSeveralOrgsLeavesTheChoiceOpen(t *testing.T) {
 	h.handle("/api/v1/device/code", 200, deviceCodeReply)
 	h.handle("/api/v1/device/token", 200, `{"token":"cli-session","user":{"id":"u1","email":"ada@example.com"},
 	  "organizations":[{"id":"o1","name":"Ada","slug":null,"personal":true},
-	                   {"id":"o2","name":"Acme Inc","slug":"acme-inc","personal":false}]}`)
+	                   {"id":"o2","name":"Acme","slug":"acme","personal":false}]}`)
 
 	got := h.run("login", "--host", h.srv.URL, "--no-browser")
 	if got.code != 0 {
@@ -241,13 +241,13 @@ func TestLoginWithOrgFlagPicksIt(t *testing.T) {
 	h.handle("/api/v1/device/code", 200, deviceCodeReply)
 	h.handle("/api/v1/device/token", 200, `{"token":"cli-session","user":{"id":"u1","email":"ada@example.com"},
 	  "organizations":[{"id":"o1","name":"Ada","slug":null,"personal":true},
-	                   {"id":"o2","name":"Acme Inc","slug":"acme-inc","personal":false}]}`)
+	                   {"id":"o2","name":"Acme","slug":"acme","personal":false}]}`)
 
-	got := h.run("login", "--host", h.srv.URL, "--no-browser", "--org", "acme-inc")
+	got := h.run("login", "--host", h.srv.URL, "--no-browser", "--org", "acme")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	if saved := h.config(); saved.Org != "acme-inc" {
+	if saved := h.config(); saved.Org != "acme" {
 		t.Errorf("org = %q", saved.Org)
 	}
 }
@@ -321,7 +321,7 @@ func TestLoginExpiredExitsOne(t *testing.T) {
 
 func TestLogoutRevokesThenClears(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary", User: &config.User{ID: "u1"}})
+	h.login(config.File{Org: "personal", Project: "helpdesk", User: &config.User{ID: "u1"}})
 	h.handle("/api/v1/sessions/revoke", 204, ``)
 
 	got := h.run("logout")
@@ -376,16 +376,16 @@ func TestLogoutWithoutASessionIsANoop(t *testing.T) {
 
 func TestWhoamiJSON(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "acme-inc", Project: "heydiary"})
+	h.login(config.File{Org: "acme", Project: "helpdesk"})
 	h.handle("/api/v1/me", 200, `{"user":{"id":"u1","email":"ada@example.com"},
-	  "organizations":[{"id":"o2","name":"Acme Inc","slug":"acme-inc","personal":false}]}`)
+	  "organizations":[{"id":"o2","name":"Acme","slug":"acme","personal":false}]}`)
 
 	got := h.run("whoami", "--json")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	payload := got.json(t)
-	if payload["org"] != "acme-inc" || payload["project"] != "heydiary" {
+	if payload["org"] != "acme" || payload["project"] != "helpdesk" {
 		t.Errorf("payload = %v, want the active scope reported", payload)
 	}
 	user := payload["user"].(map[string]any)
@@ -399,7 +399,7 @@ func TestOrgsListTable(t *testing.T) {
 	h.login(config.File{})
 	h.handle("/api/v1/orgs", 200, `{"organizations":[
 	  {"id":"o1","name":"Ada","slug":null,"personal":true},
-	  {"id":"o2","name":"Acme Inc","slug":"acme-inc","personal":false}]}`)
+	  {"id":"o2","name":"Acme","slug":"acme","personal":false}]}`)
 
 	got := h.run("orgs", "list")
 	if got.code != 0 {
@@ -408,7 +408,7 @@ func TestOrgsListTable(t *testing.T) {
 	if !strings.Contains(got.stdout, "REF") || !strings.Contains(got.stdout, "personal") {
 		t.Errorf("table = %q", got.stdout)
 	}
-	if !strings.Contains(got.stdout, "acme-inc") {
+	if !strings.Contains(got.stdout, "acme") {
 		t.Errorf("table = %q, want the team slug as its ref", got.stdout)
 	}
 }
@@ -418,16 +418,16 @@ func TestOrgsListTable(t *testing.T) {
 func TestUseVerifiesAndPersists(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{})
-	h.handle("/api/v1/orgs/acme-inc", 200, `{"id":"o2","name":"Acme Inc","slug":"acme-inc","personal":false}`)
-	h.handle("/api/v1/orgs/acme-inc/projects", 200,
-		`{"projects":[{"id":"p1","slug":"heydiary","name":"HeyDiary","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
+	h.handle("/api/v1/orgs/acme", 200, `{"id":"o2","name":"Acme","slug":"acme","personal":false}`)
+	h.handle("/api/v1/orgs/acme/projects", 200,
+		`{"projects":[{"id":"p1","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
 
-	got := h.run("use", "--org", "acme-inc", "--project", "heydiary")
+	got := h.run("use", "--org", "acme", "--project", "helpdesk")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	saved := h.config()
-	if saved.Org != "acme-inc" || saved.Project != "heydiary" {
+	if saved.Org != "acme" || saved.Project != "helpdesk" {
 		t.Errorf("config = %+v", saved)
 	}
 }
@@ -437,13 +437,13 @@ func TestUseRejectsAnUnknownProject(t *testing.T) {
 	h.login(config.File{Org: "personal"})
 	h.handle("/api/v1/orgs/personal", 200, `{"id":"o1","name":"Ada","slug":null,"personal":true}`)
 	h.handle("/api/v1/orgs/personal/projects", 200,
-		`{"projects":[{"id":"p1","slug":"heydiary","name":"HeyDiary","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
+		`{"projects":[{"id":"p1","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
 
 	got := h.run("use", "--org", "personal", "--project", "typo")
 	if got.code != 1 {
 		t.Errorf("exit = %d, want 1", got.code)
 	}
-	if !strings.Contains(got.stderr, "heydiary") {
+	if !strings.Contains(got.stderr, "helpdesk") {
 		t.Errorf("stderr = %q, want the real project names listed", got.stderr)
 	}
 	if saved := h.config(); saved.Project != "" {
@@ -475,10 +475,10 @@ func TestUseWithNothingToSetIsAUsageError(t *testing.T) {
 
 func TestUseChangingOrgForgetsTheProject(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/acme-inc", 200, `{"id":"o2","name":"Acme Inc","slug":"acme-inc","personal":false}`)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/acme", 200, `{"id":"o2","name":"Acme","slug":"acme","personal":false}`)
 
-	got := h.run("use", "--org", "acme-inc")
+	got := h.run("use", "--org", "acme")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -489,7 +489,7 @@ func TestUseChangingOrgForgetsTheProject(t *testing.T) {
 
 // ---- projects -------------------------------------------------------------
 
-const projectBody = `{"id":"p1","slug":"heydiary","name":"HeyDiary","timezone":"Etc/UTC",
+const projectBody = `{"id":"p1","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC",
   "created_at":"2026-09-01T10:00:00Z",
   "environments":[{"id":"e1","slug":"production","name":"Production","protected":true},
                   {"id":"e2","slug":"staging","name":"Staging","protected":false}]}`
@@ -499,12 +499,12 @@ func TestProjectsCreate(t *testing.T) {
 	h.login(config.File{Org: "personal"})
 	h.handle("/api/v1/orgs/personal/projects", 201, projectBody)
 
-	got := h.run("projects", "create", "heydiary", "--name", "HeyDiary")
+	got := h.run("projects", "create", "helpdesk", "--name", "Helpdesk")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	body := h.lastBody()
-	if body["key"] != "heydiary" || body["name"] != "HeyDiary" {
+	if body["key"] != "helpdesk" || body["name"] != "Helpdesk" {
 		t.Errorf("request body = %v", body)
 	}
 	if !strings.Contains(got.stdout, "production*") {
@@ -527,7 +527,7 @@ func TestProjectsListJSON(t *testing.T) {
 		t.Fatalf("payload = %v", payload)
 	}
 	first := projects[0].(map[string]any)
-	if first["slug"] != "heydiary" {
+	if first["slug"] != "helpdesk" {
 		t.Errorf("project = %v", first)
 	}
 }
@@ -557,11 +557,11 @@ func TestConflictPrintsTheExistingResourceAndFails(t *testing.T) {
 	h.login(config.File{Org: "personal"})
 	h.handle("/api/v1/orgs/personal/projects", 409, conflictBody("project", projectBody))
 
-	got := h.run("projects", "create", "heydiary")
+	got := h.run("projects", "create", "helpdesk")
 	if got.code != 1 {
 		t.Errorf("exit = %d, want 1 without --idempotent", got.code)
 	}
-	if !strings.Contains(got.stdout, "heydiary") {
+	if !strings.Contains(got.stdout, "helpdesk") {
 		t.Errorf("stdout = %q, want the existing project shown so the script can go on", got.stdout)
 	}
 	if !strings.Contains(got.stderr, "already exists") {
@@ -574,11 +574,11 @@ func TestConflictWithIdempotentSucceeds(t *testing.T) {
 	h.login(config.File{Org: "personal"})
 	h.handle("/api/v1/orgs/personal/projects", 409, conflictBody("project", projectBody))
 
-	got := h.run("projects", "create", "heydiary", "--idempotent")
+	got := h.run("projects", "create", "helpdesk", "--idempotent")
 	if got.code != 0 {
 		t.Errorf("exit = %d, want 0 with --idempotent: %s", got.code, got.stderr)
 	}
-	if !strings.Contains(got.stdout, "heydiary") {
+	if !strings.Contains(got.stdout, "helpdesk") {
 		t.Errorf("stdout = %q", got.stdout)
 	}
 }
@@ -588,28 +588,28 @@ func TestConflictWithIdempotentAndJSONPrintsTheResource(t *testing.T) {
 	h.login(config.File{Org: "personal"})
 	h.handle("/api/v1/orgs/personal/projects", 409, conflictBody("project", projectBody))
 
-	got := h.run("projects", "create", "heydiary", "--idempotent", "--json")
+	got := h.run("projects", "create", "helpdesk", "--idempotent", "--json")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	payload := got.json(t)
-	if payload["slug"] != "heydiary" || payload["id"] != "p1" {
+	if payload["slug"] != "helpdesk" || payload["id"] != "p1" {
 		t.Errorf("payload = %v, want the existing project, ready to be piped onward", payload)
 	}
 }
 
 func TestConflictOnUseCaseIsAlsoHandled(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases", 409,
-		conflictBody("use_case", `{"id":"u1","key":"diary_generation","name":"Diary generation","kind":"chat",
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases", 409,
+		conflictBody("use_case", `{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat",
 		  "description":null,"input_schema":[],"default_params":{},"tags":[],"created_at":""}`))
 
-	got := h.run("use-cases", "create", "diary_generation", "--idempotent")
+	got := h.run("use-cases", "create", "support_reply", "--idempotent")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	if !strings.Contains(got.stdout, "diary_generation") {
+	if !strings.Contains(got.stdout, "support_reply") {
 		t.Errorf("stdout = %q", got.stdout)
 	}
 }
@@ -618,21 +618,21 @@ func TestConflictOnUseCaseIsAlsoHandled(t *testing.T) {
 
 func TestUseCasesCreateSendsSchemaAndParams(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases", 201,
-		`{"id":"u1","key":"diary_generation","name":"Diary generation","kind":"chat",
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases", 201,
+		`{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat",
 		  "description":null,"input_schema":[],"default_params":{},"tags":[],"created_at":""}`)
 
 	schema := filepath.Join(t.TempDir(), "schema.json")
-	if err := os.WriteFile(schema, []byte(`[{"name":"transcriptions","type":"list","required":true}]`), 0o600); err != nil {
+	if err := os.WriteFile(schema, []byte(`[{"name":"question","type":"string","required":true}]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	got := h.run("use-cases", "create", "diary_generation",
+	got := h.run("use-cases", "create", "support_reply",
 		"--kind", "chat",
 		"--input-schema-file", schema,
 		"--default-params", `{"temperature":0.5}`,
-		"--tags", "diary,ko")
+		"--tags", "support,ko")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -646,7 +646,7 @@ func TestUseCasesCreateSendsSchemaAndParams(t *testing.T) {
 		t.Errorf("default_params = %v", params)
 	}
 	fields := body["input_schema"].([]any)
-	if len(fields) != 1 || fields[0].(map[string]any)["name"] != "transcriptions" {
+	if len(fields) != 1 || fields[0].(map[string]any)["name"] != "question" {
 		t.Errorf("input_schema = %v", fields)
 	}
 	tags := body["tags"].([]any)
@@ -657,7 +657,7 @@ func TestUseCasesCreateSendsSchemaAndParams(t *testing.T) {
 
 func TestUseCasesCreateRejectsAnUnknownKind(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
 
 	got := h.run("use-cases", "create", "x", "--kind", "vision")
 	if got.code != 2 {
@@ -670,7 +670,7 @@ func TestUseCasesCreateRejectsAnUnknownKind(t *testing.T) {
 
 func TestUseCasesCreateRejectsBadJSONParams(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
 
 	got := h.run("use-cases", "create", "x", "--default-params", "{oops}")
 	if got.code != 2 {
@@ -680,12 +680,12 @@ func TestUseCasesCreateRejectsBadJSONParams(t *testing.T) {
 
 func TestUseCasesUpdateSendsOnlyWhatChanged(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation", 200,
-		`{"id":"u1","key":"diary_generation","name":"Renamed","kind":"chat","description":null,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply", 200,
+		`{"id":"u1","key":"support_reply","name":"Renamed","kind":"chat","description":null,
 		  "input_schema":[],"default_params":{},"tags":[],"created_at":""}`)
 
-	got := h.run("use-cases", "update", "diary_generation", "--name", "Renamed")
+	got := h.run("use-cases", "update", "support_reply", "--name", "Renamed")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -700,30 +700,30 @@ func TestUseCasesUpdateSendsOnlyWhatChanged(t *testing.T) {
 
 func TestUseCasesUpdateWithNoFlagsIsAUsageError(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	if got := h.run("use-cases", "update", "diary_generation"); got.code != 2 {
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	if got := h.run("use-cases", "update", "support_reply"); got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
 }
 
 func TestUseCasesGetShowsPromptsAndDeployments(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation", 200,
-		`{"id":"u1","key":"diary_generation","name":"Diary generation","kind":"chat","description":null,
-		  "input_schema":[{"name":"transcriptions","type":"list","required":true,"description":null}],
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply", 200,
+		`{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat","description":null,
+		  "input_schema":[{"name":"question","type":"string","required":true,"description":null}],
 		  "default_params":{"temperature":0.5},"tags":[],"created_at":"2026-09-01T10:00:00Z",
 		  "prompts":[{"id":"p1","name":"default","description":null,"created_at":"","version_count":2,
 		    "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":[],"created_at":""}]}],
 		  "deployments":[{"id":"d1","revision":3,"environment":"production","model_id":"m1",
-		    "model":"anthropic/claude-sonnet-4","params":{"temperature":0.4},"provider_options":{},
+		    "model":"openai/gpt-4o-mini","params":{"temperature":0.4},"provider_options":{},
 		    "prompt_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}]}`)
 
-	got := h.run("use-cases", "get", "diary_generation")
+	got := h.run("use-cases", "get", "support_reply")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	for _, want := range []string{"diary_generation", "transcriptions", "default", "production", "anthropic/claude-sonnet-4"} {
+	for _, want := range []string{"support_reply", "question", "default", "production", "openai/gpt-4o-mini"} {
 		if !strings.Contains(got.stdout, want) {
 			t.Errorf("stdout is missing %q:\n%s", want, got.stdout)
 		}
@@ -743,15 +743,15 @@ func writeTemp(t *testing.T, name, content string) string {
 
 func TestPromptsCommitDetectsChatMessages(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/prompts/default/versions", 201,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/prompts/default/versions", 201,
 		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid","messages":[],"text_template":null,
-		  "detected_variables":["transcriptions"],"message":"migrated","content_sha256":"x","created_at":""}`)
+		  "detected_variables":["question"],"message":"migrated","content_sha256":"x","created_at":""}`)
 
 	file := writeTemp(t, "messages.json",
-		`[{"role":"system","content":"You write diaries."},{"role":"user","content":"{{ t }}"}]`)
+		`[{"role":"system","content":"You are a friendly support agent for Acme. Answer in two or three sentences; if you are not sure, say so and offer to escalate."},{"role":"user","content":"{{ t }}"}]`)
 
-	got := h.run("prompts", "commit", "diary_generation", "default", "--file", file, "--message", "migrated")
+	got := h.run("prompts", "commit", "support_reply", "default", "--file", file, "--message", "migrated")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -773,19 +773,19 @@ func TestPromptsCommitDetectsChatMessages(t *testing.T) {
 
 func TestPromptsCommitDetectsATextTemplate(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/keywords/prompts/default/versions", 201,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/keywords/prompts/default/versions", 201,
 		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid","messages":null,
-		  "text_template":"diary, day","detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
+		  "text_template":"billing, refund","detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
 
-	file := writeTemp(t, "template.txt", "diary, day, mood")
+	file := writeTemp(t, "template.txt", "billing, refund, invoice")
 
 	got := h.run("prompts", "commit", "keywords", "default", "--file", file)
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	body := h.lastBody()
-	if body["text_template"] != "diary, day, mood" {
+	if body["text_template"] != "billing, refund, invoice" {
 		t.Errorf("body = %v", body)
 	}
 	if _, ok := body["messages"]; ok {
@@ -795,13 +795,13 @@ func TestPromptsCommitDetectsATextTemplate(t *testing.T) {
 
 func TestPromptsCommitTreatsLiquidAsText(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/kw/prompts/default/versions", 201,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/kw/prompts/default/versions", 201,
 		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid","messages":null,
 		  "text_template":"x","detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
 
 	// A liquid template opens with "{%", which must not be mistaken for JSON.
-	file := writeTemp(t, "template.txt", "{% for t in transcriptions %}{{ t }}\n{% endfor %}")
+	file := writeTemp(t, "template.txt", "{% for t in question %}{{ t }}\n{% endfor %}")
 
 	got := h.run("prompts", "commit", "kw", "default", "--file", file)
 	if got.code != 0 {
@@ -814,8 +814,8 @@ func TestPromptsCommitTreatsLiquidAsText(t *testing.T) {
 
 func TestPromptsCommitFormatOverride(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/kw/prompts/default/versions", 201,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/kw/prompts/default/versions", 201,
 		`{"id":"v1","prompt_id":"p1","number":1,"engine":"raw","messages":null,
 		  "text_template":"[]","detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
 
@@ -837,7 +837,7 @@ func TestPromptsCommitFormatOverride(t *testing.T) {
 
 func TestPromptsCommitWithoutAFileIsAUsageError(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	if got := h.run("prompts", "commit", "uc", "default"); got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
@@ -845,7 +845,7 @@ func TestPromptsCommitWithoutAFileIsAUsageError(t *testing.T) {
 
 func TestPromptsCommitMissingFileFails(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	got := h.run("prompts", "commit", "uc", "default", "--file", "/nope/absent.json")
 	if got.code != 1 {
 		t.Errorf("exit = %d, want 1", got.code)
@@ -854,11 +854,11 @@ func TestPromptsCommitMissingFileFails(t *testing.T) {
 
 func TestPromptsOpen(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/prompts", 201,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/prompts", 201,
 		`{"id":"p2","name":"ko","description":"Korean","created_at":""}`)
 
-	got := h.run("prompts", "open", "diary_generation", "ko", "--description", "Korean")
+	got := h.run("prompts", "open", "support_reply", "ko", "--description", "Korean")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -872,19 +872,19 @@ func TestPromptsOpen(t *testing.T) {
 
 func TestModelsRegister(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/models", 201,
-		`{"id":"m1","provider":"openrouter","model_id":"anthropic/claude-sonnet-4",
-		  "display_name":"Claude Sonnet 4","metadata":{},"provider_options":{},
-		  "pricing":{"input_per_m":3,"output_per_m":15,"currency":"USD","unit":"token"},
-		  "context_length":200000,"capabilities":["tools"],"status":"active","created_at":""}`)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/models", 201,
+		`{"id":"m1","provider":"openrouter","model_id":"openai/gpt-4o-mini",
+		  "display_name":"GPT-4o-mini","metadata":{},"provider_options":{},
+		  "pricing":{"input_per_m":0.15,"output_per_m":0.6,"currency":"USD","unit":"token"},
+		  "context_length":128000,"capabilities":["tools"],"status":"active","created_at":""}`)
 
-	got := h.run("models", "register", "anthropic/claude-sonnet-4")
+	got := h.run("models", "register", "openai/gpt-4o-mini")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	body := h.lastBody()
-	if len(body) != 1 || body["model_id"] != "anthropic/claude-sonnet-4" {
+	if len(body) != 1 || body["model_id"] != "openai/gpt-4o-mini" {
 		t.Errorf("body = %v, want only model_id so the server can enrich it", body)
 	}
 	if !strings.Contains(got.stdout, "m1") {
@@ -894,10 +894,10 @@ func TestModelsRegister(t *testing.T) {
 
 func TestModelsListJSON(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/models", 200,
-		`{"models":[{"id":"m1","provider":"openrouter","model_id":"anthropic/claude-sonnet-4",
-		  "display_name":"Claude Sonnet 4","metadata":{},"provider_options":{},"pricing":null,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/models", 200,
+		`{"models":[{"id":"m1","provider":"openrouter","model_id":"openai/gpt-4o-mini",
+		  "display_name":"GPT-4o-mini","metadata":{},"provider_options":{},"pricing":null,
 		  "context_length":0,"capabilities":[],"status":"active","created_at":""}]}`)
 
 	got := h.run("models", "list", "--json")
@@ -913,23 +913,23 @@ func TestModelsListJSON(t *testing.T) {
 // ---- deploy ---------------------------------------------------------------
 
 const deployReply = `{"id":"d1","revision":4,"environment":"production","model_id":"11111111-1111-4111-8111-111111111111",
-  "model":"anthropic/claude-sonnet-4","params":{"temperature":0.4},"provider_options":{},
+  "model":"openai/gpt-4o-mini","params":{"temperature":0.4},"provider_options":{},
   "prompt_pins":{"default":"22222222-2222-4222-8222-222222222222"},"created_at":"2026-09-02T12:00:00Z"}`
 
 func TestDeployWithAProviderStringSendsModel(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments", 201, deployReply)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
 
-	got := h.run("deploy", "diary_generation",
+	got := h.run("deploy", "support_reply",
 		"--environment", "production",
-		"--model", "anthropic/claude-sonnet-4",
+		"--model", "openai/gpt-4o-mini",
 		"--params", `{"temperature":0.4}`)
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	body := h.lastBody()
-	if body["model"] != "anthropic/claude-sonnet-4" {
+	if body["model"] != "openai/gpt-4o-mini" {
 		t.Errorf("body = %v", body)
 	}
 	if _, ok := body["model_id"]; ok {
@@ -942,10 +942,10 @@ func TestDeployWithAProviderStringSendsModel(t *testing.T) {
 
 func TestDeployWithACatalogUUIDSendsModelID(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments", 201, deployReply)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
 
-	got := h.run("deploy", "diary_generation", "--model", "11111111-1111-4111-8111-111111111111")
+	got := h.run("deploy", "support_reply", "--model", "11111111-1111-4111-8111-111111111111")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -960,9 +960,9 @@ func TestDeployWithACatalogUUIDSendsModelID(t *testing.T) {
 
 func TestDeployResolvesVersionNumbersToUUIDs(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation", 200,
-		`{"id":"u1","key":"diary_generation","name":"d","kind":"chat","description":null,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply", 200,
+		`{"id":"u1","key":"support_reply","name":"d","kind":"chat","description":null,
 		  "input_schema":[],"default_params":{},"tags":[],"created_at":"",
 		  "prompts":[
 		    {"id":"p1","name":"default","description":null,"created_at":"","version_count":2,
@@ -970,10 +970,10 @@ func TestDeployResolvesVersionNumbersToUUIDs(t *testing.T) {
 		                 {"id":"v-one","number":1,"message":null,"detected_variables":[],"created_at":""}]},
 		    {"id":"p2","name":"ko","description":null,"created_at":"","version_count":1,
 		     "versions":[{"id":"ko-three","number":3,"message":null,"detected_variables":[],"created_at":""}]}]}`)
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments", 201, deployReply)
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
 
-	got := h.run("deploy", "diary_generation",
-		"--model", "anthropic/claude-sonnet-4",
+	got := h.run("deploy", "support_reply",
+		"--model", "openai/gpt-4o-mini",
 		"--pin", "default=1",
 		"--pin", "ko=latest")
 	if got.code != 0 {
@@ -990,11 +990,11 @@ func TestDeployResolvesVersionNumbersToUUIDs(t *testing.T) {
 
 func TestDeployWithUUIDPinsSkipsTheLookup(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments", 201, deployReply)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
 
-	got := h.run("deploy", "diary_generation",
-		"--model", "anthropic/claude-sonnet-4",
+	got := h.run("deploy", "support_reply",
+		"--model", "openai/gpt-4o-mini",
 		"--pin", "default=22222222-2222-4222-8222-222222222222")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
@@ -1006,12 +1006,12 @@ func TestDeployWithUUIDPinsSkipsTheLookup(t *testing.T) {
 
 func TestDeployRejectsAMalformedPin(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation", 200,
-		`{"id":"u1","key":"diary_generation","name":"d","kind":"chat","description":null,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply", 200,
+		`{"id":"u1","key":"support_reply","name":"d","kind":"chat","description":null,
 		  "input_schema":[],"default_params":{},"tags":[],"created_at":"","prompts":[]}`)
 
-	got := h.run("deploy", "diary_generation", "--model", "m", "--pin", "default")
+	got := h.run("deploy", "support_reply", "--model", "m", "--pin", "default")
 	if got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
@@ -1022,14 +1022,14 @@ func TestDeployRejectsAMalformedPin(t *testing.T) {
 
 func TestDeployRejectsAnUnknownPromptName(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation", 200,
-		`{"id":"u1","key":"diary_generation","name":"d","kind":"chat","description":null,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply", 200,
+		`{"id":"u1","key":"support_reply","name":"d","kind":"chat","description":null,
 		  "input_schema":[],"default_params":{},"tags":[],"created_at":"",
 		  "prompts":[{"id":"p1","name":"default","description":null,"created_at":"","version_count":1,
 		    "versions":[{"id":"v1","number":1,"message":null,"detected_variables":[],"created_at":""}]}]}`)
 
-	got := h.run("deploy", "diary_generation", "--model", "m", "--pin", "jp=1")
+	got := h.run("deploy", "support_reply", "--model", "m", "--pin", "jp=1")
 	if got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
@@ -1040,8 +1040,8 @@ func TestDeployRejectsAnUnknownPromptName(t *testing.T) {
 
 func TestDeployWithoutAModelIsAUsageError(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	got := h.run("deploy", "diary_generation")
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	got := h.run("deploy", "support_reply")
 	if got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
@@ -1052,10 +1052,10 @@ func TestDeployWithoutAModelIsAUsageError(t *testing.T) {
 
 func TestDeployJSON(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments", 201, deployReply)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
 
-	got := h.run("deploy", "diary_generation", "--model", "anthropic/claude-sonnet-4", "--json")
+	got := h.run("deploy", "support_reply", "--model", "openai/gpt-4o-mini", "--json")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -1069,11 +1069,11 @@ func TestDeployJSON(t *testing.T) {
 
 func TestDeploymentsListLive(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments", 200,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 200,
 		`{"deployments":[`+deployReply+`]}`)
 
-	got := h.run("deployments", "list", "diary_generation")
+	got := h.run("deployments", "list", "support_reply")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -1087,11 +1087,11 @@ func TestDeploymentsListLive(t *testing.T) {
 
 func TestDeploymentsListHistory(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments", 200,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 200,
 		`{"deployments":[]}`)
 
-	got := h.run("deployments", "list", "diary_generation", "--environment", "staging")
+	got := h.run("deployments", "list", "support_reply", "--environment", "staging")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -1102,10 +1102,10 @@ func TestDeploymentsListHistory(t *testing.T) {
 
 func TestRollback(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments/rollback", 200, deployReply)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments/rollback", 200, deployReply)
 
-	got := h.run("rollback", "diary_generation", "--environment", "production", "--revision", "2")
+	got := h.run("rollback", "support_reply", "--environment", "production", "--revision", "2")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -1120,19 +1120,19 @@ func TestRollback(t *testing.T) {
 
 func TestRollbackWithoutRevisionIsAUsageError(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	if got := h.run("rollback", "diary_generation"); got.code != 2 {
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	if got := h.run("rollback", "support_reply"); got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
 }
 
 func TestRollbackSurfacesAvailableRevisions(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/use-cases/diary_generation/deployments/rollback", 404,
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments/rollback", 404,
 		`{"error":{"code":"not_found","message":"no such revision","details":{"available_revisions":[1,2,3]}}}`)
 
-	got := h.run("rollback", "diary_generation", "--revision", "9")
+	got := h.run("rollback", "support_reply", "--revision", "9")
 	if got.code != 1 {
 		t.Errorf("exit = %d, want 1", got.code)
 	}
@@ -1143,20 +1143,20 @@ func TestRollbackSurfacesAvailableRevisions(t *testing.T) {
 
 // ---- keys -----------------------------------------------------------------
 
-const apiKeyReply = `{"id":"k1","name":"HeyDiary server","key_prefix":"ptn_heydiary_a",
+const apiKeyReply = `{"id":"k1","name":"Helpdesk server","key_prefix":"ptn_helpdesk_a",
   "scopes":["resolve","logs"],"last_used_at":null,"created_at":"2026-09-01T10:00:00Z",
-  "key":"ptn_heydiary_a1b2c3d4"}`
+  "key":"ptn_helpdesk_a1b2c3d4"}`
 
 func TestAPIKeysIssueShowsTheSecretOnce(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/api-keys", 201, apiKeyReply)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/api-keys", 201, apiKeyReply)
 
-	got := h.run("api-keys", "issue", "--name", "HeyDiary server", "--scopes", "resolve,logs")
+	got := h.run("api-keys", "issue", "--name", "Helpdesk server", "--scopes", "resolve,logs")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	if !strings.Contains(got.stdout, "ptn_heydiary_a1b2c3d4") {
+	if !strings.Contains(got.stdout, "ptn_helpdesk_a1b2c3d4") {
 		t.Errorf("stdout = %q, want the raw key", got.stdout)
 	}
 	if !strings.Contains(got.stdout, "only time") {
@@ -1171,30 +1171,30 @@ func TestAPIKeysIssueShowsTheSecretOnce(t *testing.T) {
 
 func TestAPIKeysIssueQuietPrintsOnlyTheKey(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/api-keys", 201, apiKeyReply)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/api-keys", 201, apiKeyReply)
 
 	got := h.run("api-keys", "issue", "--quiet")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	if strings.TrimSpace(got.stdout) != "ptn_heydiary_a1b2c3d4" {
+	if strings.TrimSpace(got.stdout) != "ptn_helpdesk_a1b2c3d4" {
 		t.Errorf("stdout = %q, want exactly the key for KEY=$(…)", got.stdout)
 	}
 }
 
 func TestAPIKeysList(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "heydiary"})
-	h.handle("/api/v1/orgs/personal/projects/heydiary/api-keys", 200,
-		`{"api_keys":[{"id":"k1","name":"HeyDiary server","key_prefix":"ptn_heydiary_a",
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/api-keys", 200,
+		`{"api_keys":[{"id":"k1","name":"Helpdesk server","key_prefix":"ptn_helpdesk_a",
 		  "scopes":["resolve","logs"],"last_used_at":null,"created_at":"2026-09-01T10:00:00Z"}]}`)
 
 	got := h.run("api-keys", "list")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	if !strings.Contains(got.stdout, "ptn_heydiary_a…") {
+	if !strings.Contains(got.stdout, "ptn_helpdesk_a…") {
 		t.Errorf("stdout = %q, want the prefix marked as truncated", got.stdout)
 	}
 }
@@ -1203,8 +1203,8 @@ func TestAPIKeysList(t *testing.T) {
 
 func TestProviderKeyStatusDisconnected(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "acme-inc"})
-	h.handle("/api/v1/orgs/acme-inc/provider-key", 200, `{"connected":false,"provider":"openrouter"}`)
+	h.login(config.File{Org: "acme"})
+	h.handle("/api/v1/orgs/acme/provider-key", 200, `{"connected":false,"provider":"openrouter"}`)
 
 	got := h.run("provider-key", "status")
 	if got.code != 0 {
@@ -1217,8 +1217,8 @@ func TestProviderKeyStatusDisconnected(t *testing.T) {
 
 func TestProviderKeySetFromFlag(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "acme-inc"})
-	h.handle("/api/v1/orgs/acme-inc/provider-key", 201,
+	h.login(config.File{Org: "acme"})
+	h.handle("/api/v1/orgs/acme/provider-key", 201,
 		`{"connected":true,"id":"pk1","provider":"openrouter","label":"default",
 		  "hint":"sk-or-v1-••••4Xa2","last_used_at":null,"created_at":""}`)
 
@@ -1236,9 +1236,9 @@ func TestProviderKeySetFromFlag(t *testing.T) {
 
 func TestProviderKeySetFromEnvironment(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "acme-inc"})
+	h.login(config.File{Org: "acme"})
 	t.Setenv("PTN_OPENROUTER_KEY", "sk-or-v1-from-env")
-	h.handle("/api/v1/orgs/acme-inc/provider-key", 201,
+	h.handle("/api/v1/orgs/acme/provider-key", 201,
 		`{"connected":true,"id":"pk1","provider":"openrouter","label":"default","hint":"x","created_at":""}`)
 
 	got := h.run("provider-key", "set")
@@ -1252,9 +1252,9 @@ func TestProviderKeySetFromEnvironment(t *testing.T) {
 
 func TestProviderKeySetFromStdin(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "acme-inc"})
+	h.login(config.File{Org: "acme"})
 	h.stdin = strings.NewReader("sk-or-v1-typed\n")
-	h.handle("/api/v1/orgs/acme-inc/provider-key", 201,
+	h.handle("/api/v1/orgs/acme/provider-key", 201,
 		`{"connected":true,"id":"pk1","provider":"openrouter","label":"default","hint":"x","created_at":""}`)
 
 	got := h.run("provider-key", "set")
@@ -1268,7 +1268,7 @@ func TestProviderKeySetFromStdin(t *testing.T) {
 
 func TestProviderKeySetWithNoSecretAnywhereIsAUsageError(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "acme-inc"})
+	h.login(config.File{Org: "acme"})
 	h.stdin = strings.NewReader("\n")
 
 	got := h.run("provider-key", "set")
@@ -1282,8 +1282,8 @@ func TestProviderKeySetWithNoSecretAnywhereIsAUsageError(t *testing.T) {
 
 func TestProviderKeyConflictPointsAtTheConsole(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "acme-inc"})
-	h.handle("/api/v1/orgs/acme-inc/provider-key", 409, conflictBody("provider_key",
+	h.login(config.File{Org: "acme"})
+	h.handle("/api/v1/orgs/acme/provider-key", 409, conflictBody("provider_key",
 		`{"connected":true,"id":"pk1","provider":"openrouter","label":"default","hint":"sk-or-v1-••••4Xa2","created_at":""}`))
 
 	got := h.run("provider-key", "set", "--secret", "sk-or-v1-new")
@@ -1340,22 +1340,22 @@ func TestHelpExitsZero(t *testing.T) {
 func TestUseProjectAloneRespectsAnEnvironmentOrg(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{})
-	t.Setenv("PTN_ORG", "acme-inc")
-	h.handle("/api/v1/orgs/acme-inc/projects", 200,
-		`{"projects":[{"id":"p1","slug":"heydiary","name":"HeyDiary","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
+	t.Setenv("PTN_ORG", "acme")
+	h.handle("/api/v1/orgs/acme/projects", 200,
+		`{"projects":[{"id":"p1","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
 
-	got := h.run("use", "--project", "heydiary")
+	got := h.run("use", "--project", "helpdesk")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	if saved := h.config(); saved.Project != "heydiary" {
+	if saved := h.config(); saved.Project != "helpdesk" {
 		t.Errorf("project = %q", saved.Project)
 	}
 }
 
 func TestProviderKeySetWithClosedStdinIsAUsageError(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "acme-inc"})
+	h.login(config.File{Org: "acme"})
 	h.stdin = strings.NewReader("") // nothing piped in at all
 
 	got := h.run("provider-key", "set")

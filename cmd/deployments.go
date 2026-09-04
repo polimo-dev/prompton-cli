@@ -28,7 +28,7 @@ per prompt name. A revision is a pin, not a router — the moment it is committe
 it is the live configuration for that (use case, environment).
 
 --model takes either a catalog UUID or a provider string like
-"anthropic/claude-sonnet-4"; a provider string that is not in the catalog yet is
+"openai/gpt-4o-mini"; a provider string that is not in the catalog yet is
 registered on the way past.
 
 --pin takes name=version, where version is a version number, the word "latest",
@@ -37,8 +37,8 @@ every prompt. If the use case has a "default" prompt it must end up pinned —
 that is what the app gets when it names no prompt.
 
 Promoting is the same command against another environment with the same pins.`,
-		Example: "  " + meta.Name + " deploy diary_generation --environment production \\\n" +
-			"      --model anthropic/claude-sonnet-4 --params '{\"temperature\":0.4}' \\\n" +
+		Example: "  " + meta.Name + " deploy support_reply --environment production \\\n" +
+			"      --model openai/gpt-4o-mini --params '{\"temperature\":0.3}' \\\n" +
 			"      --pin default=1 --pin ko=latest",
 		Args: exactArgs(1, "<use-case>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -179,7 +179,7 @@ func newRollbackCommand(g *globals) *cobra.Command {
 		Long: `Roll back by re-committing an earlier revision's pins. History is never
 rewound, so this produces a new, higher revision number carrying the old
 configuration.`,
-		Example: "  " + meta.Name + " rollback diary_generation --environment production --revision 2",
+		Example: "  " + meta.Name + " rollback support_reply --environment production --revision 2",
 		Args:    exactArgs(1, "<use-case>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("revision") {

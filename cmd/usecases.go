@@ -153,8 +153,8 @@ func newUseCasesCreateCommand(g *globals) *cobra.Command {
 The key is the app's contract — lowercase [a-z0-9_], starting with a letter —
 and cannot be changed later. For kind chat and text a "default" prompt is
 created alongside, ready for its first version.`,
-		Example: "  " + meta.Name + " use-cases create diary_generation --kind chat \\\n" +
-			"      --name 'Diary generation' --default-params '{\"temperature\":0.5}'",
+		Example: "  " + meta.Name + " use-cases create support_reply --kind chat \\\n" +
+			"      --name 'Support reply' --default-params '{\"temperature\":0.3}'",
 		Args: exactArgs(1, "<key>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := g.client()

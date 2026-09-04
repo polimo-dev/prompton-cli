@@ -42,7 +42,7 @@ project and to config-fetch (resolve) and monitoring logs (logs) only.
 The secret is printed once, here, and never again — the server keeps a hash.
 Keys are not tied to an environment: one key reads production and staging, and
 the app names the environment in each request.`,
-		Example: "  " + meta.Name + " api-keys issue --name 'HeyDiary server' --scopes resolve,logs",
+		Example: "  " + meta.Name + " api-keys issue --name 'Helpdesk server' --scopes resolve,logs",
 		Args:    noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, _, err := g.client()
