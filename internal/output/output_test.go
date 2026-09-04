@@ -185,7 +185,7 @@ func TestTruncateCountsRunes(t *testing.T) {
 }
 
 func TestJoinAndBool(t *testing.T) {
-	if output.Join([]string{"resolve", "logs"}) != "resolve,logs" {
+	if output.Join([]string{"read", "logs"}) != "read,logs" {
 		t.Error("Join")
 	}
 	if output.Join(nil) != "" {

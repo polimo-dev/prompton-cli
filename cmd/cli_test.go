@@ -1144,7 +1144,7 @@ func TestRollbackSurfacesAvailableRevisions(t *testing.T) {
 // ---- keys -----------------------------------------------------------------
 
 const apiKeyReply = `{"id":"k1","name":"Helpdesk server","key_prefix":"ptn_helpdesk_a",
-  "scopes":["resolve","logs"],"last_used_at":null,"created_at":"2026-09-01T10:00:00Z",
+  "scopes":["read","logs"],"last_used_at":null,"created_at":"2026-09-01T10:00:00Z",
   "key":"ptn_helpdesk_a1b2c3d4"}`
 
 func TestAPIKeysIssueShowsTheSecretOnce(t *testing.T) {
@@ -1152,7 +1152,7 @@ func TestAPIKeysIssueShowsTheSecretOnce(t *testing.T) {
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/api-keys", 201, apiKeyReply)
 
-	got := h.run("api-keys", "issue", "--name", "Helpdesk server", "--scopes", "resolve,logs")
+	got := h.run("api-keys", "issue", "--name", "Helpdesk server", "--scopes", "read,logs")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -1188,7 +1188,7 @@ func TestAPIKeysList(t *testing.T) {
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/api-keys", 200,
 		`{"api_keys":[{"id":"k1","name":"Helpdesk server","key_prefix":"ptn_helpdesk_a",
-		  "scopes":["resolve","logs"],"last_used_at":null,"created_at":"2026-09-01T10:00:00Z"}]}`)
+		  "scopes":["read","logs"],"last_used_at":null,"created_at":"2026-09-01T10:00:00Z"}]}`)
 
 	got := h.run("api-keys", "list")
 	if got.code != 0 {

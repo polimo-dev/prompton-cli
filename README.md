@@ -221,12 +221,12 @@ prompt name. Committing it makes it the live configuration for that
 ### 5. Issue the runtime key
 
 ```sh
-prompton api-keys issue --name 'Helpdesk server' --scopes resolve,logs
+prompton api-keys issue --name 'Helpdesk server' --scopes read,logs
 ```
 
 The secret is printed once and never again. It is scoped to this project and
-to config-fetch (`resolve`) plus monitoring logs (`logs`). One key covers every
-environment; the app names the environment in each request.
+to deployed use-case reads (`read`) plus monitoring logs (`logs`). One key
+covers every environment; the app names the environment in each request.
 
 For a script:
 
@@ -236,18 +236,19 @@ PTN_KEY=$(prompton api-keys issue --quiet)
 
 ### 6. Point the app at PromptOn
 
-Replace the hard-coded prompt and model with a config fetch. The runtime API
-(`/api/v1/resolve`, `/api/v1/snapshot`, `/api/v1/generations`) is documented
+Replace the hard-coded prompt and model with a deployed use-case fetch. The
+runtime API (`/api/v1/use-cases`, `/api/v1/use-cases/:key/prompt`,
+`/api/v1/logs`) is documented
 separately; the app calls its LLM provider directly, with its own key, so
 PromptOn stays out of the request path.
 
-Confirm onboarding is done by resolving with the runtime key:
+Confirm onboarding is done by filling a deployed prompt with the runtime key:
 
 ```sh
 curl -sS -H "Authorization: Bearer $PTN_KEY" \
   -H 'content-type: application/json' \
-  -d '{"use_case": "support_reply"}' \
-  https://app.prompton.ai/api/v1/resolve
+  -d '{"prompt":"default","variables":{"question":"Where is my order?"},"environment":"production"}' \
+  https://app.prompton.ai/api/v1/use-cases/support_reply/prompt
 ```
 
 ### 7. Optional: connect a provider key
@@ -330,7 +331,7 @@ Every command accepts the global flags below.
 
 | Command | What it does |
 |---|---|
-| `prompton api-keys issue [--name N] [--scopes resolve,logs]` | Mints a runtime key; the secret is shown once |
+| `prompton api-keys issue [--name N] [--scopes read,logs]` | Mints a runtime key; the secret is shown once |
 | `prompton api-keys list` | Live runtime keys, without secrets |
 | `prompton provider-key set [--secret S] [--label L]` | Stores the organization's OpenRouter key |
 | `prompton provider-key status` | Whether one is connected, and its masked hint |

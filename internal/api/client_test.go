@@ -694,11 +694,11 @@ func TestRollback(t *testing.T) {
 
 func TestIssueAPIKeyReturnsTheSecretOnce(t *testing.T) {
 	s := newStub(t, 201, `{"id":"k1","name":"Helpdesk server","key_prefix":"ptn_helpdesk_a",
-	  "scopes":["resolve","logs"],"last_used_at":null,"created_at":"2026-09-01T…",
+	  "scopes":["read","logs"],"last_used_at":null,"created_at":"2026-09-01T…",
 	  "key":"ptn_helpdesk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"}`)
 
 	got, err := s.client("tok").IssueAPIKey(ctx(), "personal", "helpdesk",
-		api.IssueAPIKeyRequest{Name: "Helpdesk server", Scopes: []string{"resolve", "logs"}})
+		api.IssueAPIKeyRequest{Name: "Helpdesk server", Scopes: []string{"read", "logs"}})
 	if err != nil {
 		t.Fatalf("IssueAPIKey: %v", err)
 	}
@@ -713,7 +713,7 @@ func TestIssueAPIKeyReturnsTheSecretOnce(t *testing.T) {
 
 func TestListAPIKeysHasNoSecret(t *testing.T) {
 	s := newStub(t, 200, `{"api_keys":[{"id":"k1","name":"Helpdesk server","key_prefix":"ptn_helpdesk_a",
-	  "scopes":["resolve","logs"],"last_used_at":"2026-09-02T09:00:00Z","created_at":"2026-09-01T…"}]}`)
+	  "scopes":["read","logs"],"last_used_at":"2026-09-02T09:00:00Z","created_at":"2026-09-01T…"}]}`)
 	got, err := s.client("tok").ListAPIKeys(ctx(), "personal", "helpdesk")
 	if err != nil {
 		t.Fatalf("ListAPIKeys: %v", err)

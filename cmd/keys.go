@@ -37,12 +37,12 @@ func newAPIKeysIssueCommand(g *globals) *cobra.Command {
 		Use:   "issue",
 		Short: "Issue a runtime key for the app",
 		Long: `Issue the key the application puts in its environment. It is scoped to this
-project and to config-fetch (resolve) and monitoring logs (logs) only.
+project and to deployed use-case reads (read) and monitoring logs (logs) only.
 
 The secret is printed once, here, and never again — the server keeps a hash.
 Keys are not tied to an environment: one key reads production and staging, and
 the app names the environment in each request.`,
-		Example: "  " + meta.Name + " api-keys issue --name 'Helpdesk server' --scopes resolve,logs",
+		Example: "  " + meta.Name + " api-keys issue --name 'Helpdesk server' --scopes read,logs",
 		Args:    noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, _, err := g.client()
@@ -83,7 +83,7 @@ the app names the environment in each request.`,
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "label for this key (default \"CLI key\")")
-	cmd.Flags().StringSliceVar(&scopes, "scopes", nil, "comma-separated scopes: resolve, logs (default both)")
+	cmd.Flags().StringSliceVar(&scopes, "scopes", nil, "comma-separated scopes: read, logs (default both)")
 	return cmd
 }
 
