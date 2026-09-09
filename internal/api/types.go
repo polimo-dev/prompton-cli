@@ -75,7 +75,7 @@ type Environment struct {
 type Project struct {
 	ID           string        `json:"id"`
 	Slug         string        `json:"slug"`
-	Name         string        `json:"name"`
+	Description  string        `json:"description"`
 	Timezone     string        `json:"timezone"`
 	CreatedAt    string        `json:"created_at"`
 	Environments []Environment `json:"environments"`
@@ -83,9 +83,9 @@ type Project struct {
 
 // CreateProjectRequest is the body of POST /projects.
 type CreateProjectRequest struct {
-	Key      string `json:"key"`
-	Name     string `json:"name,omitempty"`
-	Timezone string `json:"timezone,omitempty"`
+	Key         string `json:"key"`
+	Description string `json:"description,omitempty"`
+	Timezone    string `json:"timezone,omitempty"`
 }
 
 // ---- use cases ------------------------------------------------------------

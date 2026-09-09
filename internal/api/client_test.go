@@ -296,7 +296,7 @@ func TestGetOrg(t *testing.T) {
 
 // ---- projects -------------------------------------------------------------
 
-const projectJSON = `{"id":"0192p","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC",
+const projectJSON = `{"id":"0192p","slug":"helpdesk","description":"Customer support app","timezone":"Etc/UTC",
   "created_at":"2026-09-01T10:00:00Z",
   "environments":[{"id":"e1","slug":"production","name":"Production","protected":true},
                   {"id":"e2","slug":"staging","name":"Staging","protected":false}]}`
@@ -322,14 +322,14 @@ func TestListProjects(t *testing.T) {
 func TestCreateProject(t *testing.T) {
 	s := newStub(t, 201, projectJSON)
 	got, err := s.client("tok").CreateProject(ctx(), "personal", api.CreateProjectRequest{
-		Key: "helpdesk", Name: "Helpdesk", Timezone: "Etc/UTC",
+		Key: "helpdesk", Description: "Customer support app", Timezone: "Etc/UTC",
 	})
 	if err != nil {
 		t.Fatalf("CreateProject: %v", err)
 	}
 	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects")
 	body := c.bodyMap(t)
-	if body["key"] != "helpdesk" || body["name"] != "Helpdesk" || body["timezone"] != "Etc/UTC" {
+	if body["key"] != "helpdesk" || body["description"] != "Customer support app" || body["timezone"] != "Etc/UTC" {
 		t.Errorf("request body = %v", body)
 	}
 	if got.ID != "0192p" {
@@ -343,8 +343,8 @@ func TestCreateProjectOmitsUnsetOptionalFields(t *testing.T) {
 		t.Fatalf("CreateProject: %v", err)
 	}
 	body := s.only().bodyMap(t)
-	if _, ok := body["name"]; ok {
-		t.Errorf("an unset name must not be sent, body = %v", body)
+	if _, ok := body["description"]; ok {
+		t.Errorf("an unset description must not be sent, body = %v", body)
 	}
 	if _, ok := body["timezone"]; ok {
 		t.Errorf("an unset timezone must not be sent, body = %v", body)

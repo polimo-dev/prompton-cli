@@ -45,16 +45,16 @@ func newProjectsListCommand(g *globals) *cobra.Command {
 			}
 			rows := make([][]string, 0, len(projects))
 			for _, pr := range projects {
-				rows = append(rows, []string{pr.Slug, pr.Name, pr.Timezone, environmentList(pr.Environments), output.Date(pr.CreatedAt)})
+				rows = append(rows, []string{pr.Slug, output.Dash(pr.Description), pr.Timezone, environmentList(pr.Environments), output.Date(pr.CreatedAt)})
 			}
-			p.Table([]string{"SLUG", "NAME", "TIMEZONE", "ENVIRONMENTS", "CREATED"}, rows)
+			p.Table([]string{"SLUG", "DESCRIPTION", "TIMEZONE", "ENVIRONMENTS", "CREATED"}, rows)
 			return nil
 		},
 	}
 }
 
 func newProjectsCreateCommand(g *globals) *cobra.Command {
-	var name, timezone string
+	var description, timezone string
 
 	cmd := &cobra.Command{
 		Use:   "create <slug>",
@@ -64,7 +64,7 @@ created with it.
 
 The slug is lowercase letters, digits and hyphens, unique inside the
 organization.`,
-		Example: "  " + meta.Name + " projects create helpdesk --name Helpdesk",
+		Example: "  " + meta.Name + " projects create helpdesk --description 'Customer support app'",
 		Args:    exactArgs(1, "<slug>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := g.client()
@@ -78,9 +78,9 @@ organization.`,
 			slug := args[0]
 
 			project, createErr := client.CreateProject(cmd.Context(), org, api.CreateProjectRequest{
-				Key:      slug,
-				Name:     name,
-				Timezone: timezone,
+				Key:         slug,
+				Description: description,
+				Timezone:    timezone,
 			})
 			var found api.Project
 			wasExisting, err := existing(createErr, &found)
@@ -99,7 +99,7 @@ organization.`,
 			} else {
 				p.Fields([][2]string{
 					{"Slug", project.Slug},
-					{"Name", project.Name},
+					{"Description", output.Dash(project.Description)},
 					{"Timezone", project.Timezone},
 					{"Environments", environmentList(project.Environments)},
 					{"Id", project.ID},
@@ -112,7 +112,7 @@ organization.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&name, "name", "", "display name (defaults to the slug)")
+	cmd.Flags().StringVar(&description, "description", "", "project description")
 	cmd.Flags().StringVar(&timezone, "timezone", "", "IANA timezone for reporting (default Etc/UTC)")
 	return cmd
 }

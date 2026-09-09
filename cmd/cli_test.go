@@ -420,7 +420,7 @@ func TestUseVerifiesAndPersists(t *testing.T) {
 	h.login(config.File{})
 	h.handle("/api/v1/orgs/acme", 200, `{"id":"o2","name":"Acme","slug":"acme","personal":false}`)
 	h.handle("/api/v1/orgs/acme/projects", 200,
-		`{"projects":[{"id":"p1","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
+		`{"projects":[{"id":"p1","slug":"helpdesk","description":"Customer support app","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
 
 	got := h.run("use", "--org", "acme", "--project", "helpdesk")
 	if got.code != 0 {
@@ -437,14 +437,14 @@ func TestUseRejectsAnUnknownProject(t *testing.T) {
 	h.login(config.File{Org: "personal"})
 	h.handle("/api/v1/orgs/personal", 200, `{"id":"o1","name":"Ada","slug":null,"personal":true}`)
 	h.handle("/api/v1/orgs/personal/projects", 200,
-		`{"projects":[{"id":"p1","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
+		`{"projects":[{"id":"p1","slug":"helpdesk","description":"Customer support app","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
 
 	got := h.run("use", "--org", "personal", "--project", "typo")
 	if got.code != 1 {
 		t.Errorf("exit = %d, want 1", got.code)
 	}
 	if !strings.Contains(got.stderr, "helpdesk") {
-		t.Errorf("stderr = %q, want the real project names listed", got.stderr)
+		t.Errorf("stderr = %q, want the real project keys listed", got.stderr)
 	}
 	if saved := h.config(); saved.Project != "" {
 		t.Errorf("a rejected project must not be stored, got %q", saved.Project)
@@ -489,7 +489,7 @@ func TestUseChangingOrgForgetsTheProject(t *testing.T) {
 
 // ---- projects -------------------------------------------------------------
 
-const projectBody = `{"id":"p1","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC",
+const projectBody = `{"id":"p1","slug":"helpdesk","description":"Customer support app","timezone":"Etc/UTC",
   "created_at":"2026-09-01T10:00:00Z",
   "environments":[{"id":"e1","slug":"production","name":"Production","protected":true},
                   {"id":"e2","slug":"staging","name":"Staging","protected":false}]}`
@@ -499,12 +499,12 @@ func TestProjectsCreate(t *testing.T) {
 	h.login(config.File{Org: "personal"})
 	h.handle("/api/v1/orgs/personal/projects", 201, projectBody)
 
-	got := h.run("projects", "create", "helpdesk", "--name", "Helpdesk")
+	got := h.run("projects", "create", "helpdesk", "--description", "Customer support app")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	body := h.lastBody()
-	if body["key"] != "helpdesk" || body["name"] != "Helpdesk" {
+	if body["key"] != "helpdesk" || body["description"] != "Customer support app" {
 		t.Errorf("request body = %v", body)
 	}
 	if !strings.Contains(got.stdout, "production*") {
@@ -542,6 +542,9 @@ func TestProjectsListEmptyStillPrintsTheHeader(t *testing.T) {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	if !strings.Contains(got.stdout, "SLUG") {
+		t.Errorf("stdout = %q", got.stdout)
+	}
+	if !strings.Contains(got.stdout, "DESCRIPTION") {
 		t.Errorf("stdout = %q", got.stdout)
 	}
 }
@@ -1359,7 +1362,7 @@ func TestUseProjectAloneRespectsAnEnvironmentOrg(t *testing.T) {
 	h.login(config.File{})
 	t.Setenv("PTN_ORG", "acme")
 	h.handle("/api/v1/orgs/acme/projects", 200,
-		`{"projects":[{"id":"p1","slug":"helpdesk","name":"Helpdesk","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
+		`{"projects":[{"id":"p1","slug":"helpdesk","description":"Customer support app","timezone":"Etc/UTC","created_at":"","environments":[]}]}`)
 
 	got := h.run("use", "--project", "helpdesk")
 	if got.code != 0 {

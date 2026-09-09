@@ -124,7 +124,7 @@ configuration instead of carrying it.
 
 ```sh
 prompton login
-prompton projects create helpdesk --name Helpdesk --timezone Etc/UTC
+prompton projects create helpdesk --description 'Customer support app' --timezone Etc/UTC
 prompton use --project helpdesk
 ```
 
@@ -291,7 +291,7 @@ Every command accepts the global flags below.
 | Command | What it does |
 |---|---|
 | `prompton projects list` | The organization's projects |
-| `prompton projects create <slug> [--name N] [--timezone TZ]` | Creates a project plus its environments |
+| `prompton projects create <slug> [--description D] [--timezone TZ]` | Creates a project plus its environments |
 
 ### Use cases
 
