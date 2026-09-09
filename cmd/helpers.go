@@ -70,81 +70,43 @@ func readInput(path string, stdin io.Reader) ([]byte, error) {
 	return raw, nil
 }
 
-// parsePins turns repeated --pin name=version flags into the prompt_pins map.
-// A value may be a version UUID, a version number, or "latest"; the numeric
-// and "latest" forms are resolved against the use case, which is why this
-// needs the prompts.
-func parsePins(pins []string, prompts []api.Prompt) (map[string]string, error) {
-	if len(pins) == 0 {
-		return nil, nil
-	}
-	out := make(map[string]string, len(pins))
-	for _, pin := range pins {
-		name, value, ok := strings.Cut(pin, "=")
-		name, value = strings.TrimSpace(name), strings.TrimSpace(value)
-		if !ok || name == "" || value == "" {
-			return nil, usagef("--pin expects name=version (got %q)", pin)
-		}
-		if isUUID(value) {
-			out[name] = value
-			continue
-		}
-		id, err := resolveVersion(name, value, prompts)
-		if err != nil {
-			return nil, err
-		}
-		out[name] = id
-	}
-	return out, nil
-}
-
-// resolveVersion maps a prompt name plus a version number (or "latest") to the
-// version UUID a deployment pin needs.
-func resolveVersion(name, value string, prompts []api.Prompt) (string, error) {
-	var prompt *api.Prompt
-	for i := range prompts {
-		if prompts[i].Name == name {
-			prompt = &prompts[i]
-			break
-		}
-	}
+// resolveSingleVersion maps a version number to the prompt version UUID a deployment
+// needs. The use-case payload carries recent versions for compatibility under a
+// single default prompt.
+func resolveSingleVersion(value string, prompts []api.Prompt) (string, error) {
+	prompt := singlePrompt(prompts)
 	if prompt == nil {
-		available := make([]string, 0, len(prompts))
-		for _, p := range prompts {
-			available = append(available, p.Name)
-		}
-		if len(available) == 0 {
-			return "", usagef("this use case has no prompt named %q", name)
-		}
-		return "", usagef("this use case has no prompt named %q (available: %s)", name, strings.Join(available, ", "))
+		return "", usagef("this use case has no committed prompt version to deploy")
 	}
 	if len(prompt.Versions) == 0 {
-		return "", usagef("prompt %q has no committed versions yet — commit one first", name)
-	}
-
-	if strings.EqualFold(value, "latest") {
-		best := prompt.Versions[0]
-		for _, v := range prompt.Versions {
-			if v.Number > best.Number {
-				best = v
-			}
-		}
-		return best.ID, nil
+		return "", usagef("this use case has no committed prompt version to deploy — commit one first")
 	}
 
 	number, err := strconv.Atoi(value)
 	if err != nil {
-		return "", usagef("--pin %s=%s: expected a version number, \"latest\", or a version UUID", name, value)
+		return "", usagef("--version must be a version number, \"latest\", or a version UUID")
 	}
 	for _, v := range prompt.Versions {
 		if v.Number == number {
 			return v.ID, nil
 		}
 	}
-	// GET /use-cases/:key carries only the most recent 20 versions, so an
-	// older number needs its UUID spelled out.
-	return "", usagef("prompt %q has no version %d in the %d most recent versions — pin it by version UUID instead",
-		name, number, len(prompt.Versions))
+	// GET /use-cases/:key carries only the most recent versions, so an older
+	// number needs its UUID spelled out.
+	return "", usagef("this use case has no version %d in the %d most recent versions — deploy it by version UUID instead",
+		number, len(prompt.Versions))
+}
+
+func singlePrompt(prompts []api.Prompt) *api.Prompt {
+	for i := range prompts {
+		if prompts[i].Name == "default" {
+			return &prompts[i]
+		}
+	}
+	if len(prompts) == 1 {
+		return &prompts[0]
+	}
+	return nil
 }
 
 // existing decodes the resource a 409 carries into v. It reports whether the

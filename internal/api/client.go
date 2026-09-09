@@ -255,20 +255,10 @@ func (c *Client) UpdateUseCase(ctx context.Context, org, project, key string, re
 
 // ---- prompts --------------------------------------------------------------
 
-// CreatePrompt opens a new prompt name under a use case.
-func (c *Client) CreatePrompt(ctx context.Context, org, project, useCase string, req CreatePromptRequest) (*Prompt, error) {
-	var out Prompt
-	path := useCasesPath(org, project) + "/" + seg(useCase) + "/prompts"
-	if err := c.do(ctx, http.MethodPost, path, req, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CommitVersion commits an immutable version of a named prompt.
-func (c *Client) CommitVersion(ctx context.Context, org, project, useCase, name string, req CommitVersionRequest) (*PromptVersion, error) {
+// CommitVersion commits an immutable prompt version for a use case.
+func (c *Client) CommitVersion(ctx context.Context, org, project, useCase string, req CommitVersionRequest) (*PromptVersion, error) {
 	var out PromptVersion
-	path := useCasesPath(org, project) + "/" + seg(useCase) + "/prompts/" + seg(name) + "/versions"
+	path := useCasesPath(org, project) + "/" + seg(useCase) + "/prompt/versions"
 	if err := c.do(ctx, http.MethodPost, path, req, &out); err != nil {
 		return nil, err
 	}

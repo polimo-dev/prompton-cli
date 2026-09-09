@@ -16,71 +16,11 @@ func newPromptsCommand(g *globals) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "prompts",
 		Aliases: []string{"prompt"},
-		Short:   "Named prompts and their immutable versions",
+		Short:   "Prompt versions",
 		Args:    noArgs,
 		RunE:    func(c *cobra.Command, _ []string) error { return c.Help() },
 	}
-	cmd.AddCommand(newPromptsOpenCommand(g), newPromptsCommitCommand(g))
-	return cmd
-}
-
-func newPromptsOpenCommand(g *globals) *cobra.Command {
-	var description string
-
-	cmd := &cobra.Command{
-		Use:   "open <use-case> <name>",
-		Short: "Open a new prompt name under a use case",
-		Long: `Open a prompt name. The name is what the app sends as its "prompt" request
-parameter, which is how one use case serves several variants (languages, for
-instance).
-
-Chat use cases already have "default"; opening it again is a conflict.`,
-		Example: "  " + meta.Name + " prompts open support_reply ko --description Korean",
-		Args:    exactArgs(2, "<use-case> <name>"),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, _, err := g.client()
-			if err != nil {
-				return err
-			}
-			org, project, err := g.scope()
-			if err != nil {
-				return err
-			}
-			useCase, name := args[0], args[1]
-
-			prompt, createErr := client.CreatePrompt(cmd.Context(), org, project, useCase, api.CreatePromptRequest{
-				Name:        name,
-				Description: description,
-			})
-			var found api.Prompt
-			wasExisting, err := existing(createErr, &found)
-			if err != nil {
-				return err
-			}
-			if wasExisting {
-				prompt = &found
-			}
-
-			p := g.printer()
-			if g.asJSON {
-				if err := p.PrintJSON(prompt); err != nil {
-					return err
-				}
-			} else {
-				p.Fields([][2]string{
-					{"Prompt", prompt.Name},
-					{"Description", output.Dash(output.Str(prompt.Description))},
-					{"Id", prompt.ID},
-				})
-			}
-			if wasExisting {
-				return g.alreadyExists("prompt", name)
-			}
-			return nil
-		},
-	}
-
-	cmd.Flags().StringVar(&description, "description", "", "what this prompt variant is for")
+	cmd.AddCommand(newPromptsCommitCommand(g))
 	return cmd
 }
 
@@ -93,9 +33,9 @@ func newPromptsCommitCommand(g *globals) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "commit <use-case> <name>",
-		Short: "Commit a new immutable version of a prompt",
-		Long: `Commit the contents of a file as the next version of a prompt.
+		Use:   "commit <use-case>",
+		Short: "Commit a new immutable prompt version",
+		Long: `Commit the contents of a file as the next prompt version for a use case.
 
 Versions are immutable and committing alone changes nothing at runtime — a
 version goes live when a deployment revision pins it.
@@ -103,9 +43,9 @@ version goes live when a deployment revision pins it.
 The file is read as chat messages when it holds a JSON array (or an object with
 a "messages" array). Any other non-empty file is committed as one user message.
 Pass "-" as the file to read stdin.`,
-		Example: "  " + meta.Name + " prompts commit support_reply default \\\n" +
+		Example: "  " + meta.Name + " prompts commit support_reply \\\n" +
 			"      --file messages.json --message 'migrated from the app'",
-		Args: exactArgs(2, "<use-case> <name>"),
+		Args: exactArgs(1, "<use-case>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if file == "" {
 				return usagef("--file is required (use \"-\" to read stdin)")
@@ -130,7 +70,7 @@ Pass "-" as the file to read stdin.`,
 			req.Engine = engine
 			req.Message = message
 
-			version, err := client.CommitVersion(cmd.Context(), org, project, args[0], args[1], req)
+			version, err := client.CommitVersion(cmd.Context(), org, project, args[0], req)
 			if err != nil {
 				return err
 			}
@@ -140,7 +80,7 @@ Pass "-" as the file to read stdin.`,
 				return p.PrintJSON(version)
 			}
 			p.Fields([][2]string{
-				{"Prompt", args[1]},
+				{"Use case", args[0]},
 				{"Version", fmt.Sprintf("v%d", version.Number)},
 				{"Engine", version.Engine},
 				{"Variables", output.Dash(output.Join(version.DetectedVariables))},

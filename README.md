@@ -13,7 +13,7 @@ turns "already exists" into something a re-run can survive.
 prompton login
 prompton projects create helpdesk
 prompton use-cases create support_reply
-prompton prompts commit support_reply default --file messages.json
+prompton prompts commit support_reply --file messages.json
 prompton deploy support_reply --model openai/gpt-4o-mini
 prompton api-keys issue --name 'Helpdesk server'
 ```
@@ -155,12 +155,12 @@ prompton use-cases create support_reply \
 ]
 ```
 
-A prompt named `default` is created with the use case.
+A single prompt is created with the use case.
 
 ### 3. Commit the app's existing prompt as version 1
 
 ```sh
-prompton prompts commit support_reply default \
+prompton prompts commit support_reply \
   --file messages.json \
   --message "migrated from the app's hardcoded prompt"
 ```
@@ -178,16 +178,12 @@ A file holding a JSON array (or an object with a `messages` array) is committed
 as chat messages. Any other non-empty file is committed as one `user` message.
 Pass `--file -` to read stdin.
 
-Open more prompt names when one use case serves several variants. The name is
-what the app sends as its `prompt` parameter:
-
-```sh
-prompton prompts open support_reply ko --description Korean
-prompton prompts commit support_reply ko --file messages.ko.json
-```
-
 Versions are immutable, and committing one changes nothing at runtime. A
 version goes live only when a deployment pins it.
+
+If the same call site needs language, tone, or tenant variants, keep them in
+one prompt with variables and Liquid branches. If the purpose differs, create a
+separate use case.
 
 ### 4. Pin a deployment — the app's current model, unchanged
 
@@ -198,21 +194,19 @@ prompton deploy support_reply \
   --environment production \
   --model openai/gpt-4o-mini \
   --params '{"temperature":0.3}' \
-  --pin default=1 \
-  --pin ko=latest
+  --version 1
 ```
 
-A revision is a pin, not a router: one model, its params, and one version per
-prompt name. Committing it makes it the live configuration for that
+A revision is a pin, not a router: one model, its params, and one prompt
+version. Committing it makes it the live configuration for that
 (use case, environment) pair.
 
 - `--model` takes a provider string or a catalog UUID. A provider string that
   is not in the catalog is registered on the way past.
-- `--pin name=version` takes a version number, the word `latest`, or a version
-  UUID. Omit `--pin` entirely to pin the newest committed version of every
-  prompt.
+- `--version` takes a version number, the word `latest`, or a version UUID.
+  Omit `--version` to pin the newest committed prompt version.
 - Promoting staging to production is the same command with a different
-  `--environment` and the same pins — staging can carry its own params, say
+  `--environment` and the same version — staging can carry its own params, say
   `--params '{"temperature":0.7}'` against the same model.
 
 ### 5. Issue the runtime key
@@ -244,7 +238,7 @@ Confirm onboarding is done by filling a deployed prompt with the runtime key:
 ```sh
 curl -sS -H "Authorization: Bearer $PTN_KEY" \
   -H 'content-type: application/json' \
-  -d '{"prompt":"default","variables":{"question":"Where is my order?"},"environment":"production"}' \
+  -d '{"variables":{"question":"Where is my order?"},"environment":"production"}' \
   https://app.prompton.ai/api/v1/use-cases/support_reply/prompt
 ```
 
@@ -298,7 +292,7 @@ Every command accepts the global flags below.
 | Command | What it does |
 |---|---|
 | `prompton use-cases list` | Every call site in the project |
-| `prompton use-cases get <key>` | The use case with its prompts and live deployments |
+| `prompton use-cases get <key>` | The use case with its prompt versions and live deployments |
 | `prompton use-cases create <key> [--name N] [--description D] [--input-schema-file F] [--default-params JSON] [--tags a,b]` | Creates a chat use case |
 | `prompton use-cases update <key> [--name N] [--description D] [--tags a,b] [--input-schema-file F] [--default-params JSON]` | Changes only the fields given; schema and params are replaced, not merged |
 
@@ -306,8 +300,7 @@ Every command accepts the global flags below.
 
 | Command | What it does |
 |---|---|
-| `prompton prompts open <use-case> <name> [--description D]` | Opens a new prompt name |
-| `prompton prompts commit <use-case> <name> --file F [--engine liquid\|raw] [--message M]` | Commits an immutable chat version |
+| `prompton prompts commit <use-case> --file F [--engine liquid\|raw] [--message M]` | Commits an immutable chat version |
 
 ### Models
 
@@ -320,7 +313,7 @@ Every command accepts the global flags below.
 
 | Command | What it does |
 |---|---|
-| `prompton deploy <use-case> --model M [--environment E] [--params JSON] [--provider-options JSON] [--pin name=version ...]` | Commits a revision |
+| `prompton deploy <use-case> --model M [--environment E] [--params JSON] [--provider-options JSON] [--version latest\|N\|UUID]` | Commits a revision |
 | `prompton deployments list <use-case> [--environment E]` | Live revisions, or one environment's history |
 | `prompton rollback <use-case> --revision N [--environment E]` | Re-commits a past revision |
 

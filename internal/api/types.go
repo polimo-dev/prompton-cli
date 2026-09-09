@@ -155,7 +155,7 @@ type VersionSummary struct {
 	CreatedAt         string   `json:"created_at"`
 }
 
-// Prompt is one named prompt of a use case ("default", "ko", …).
+// Prompt is the prompt attached to a use case. Older API payloads expose the compatibility name "default".
 type Prompt struct {
 	ID           string           `json:"id"`
 	Name         string           `json:"name"`
@@ -169,12 +169,6 @@ type Prompt struct {
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
-}
-
-// CreatePromptRequest opens a new prompt name.
-type CreatePromptRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
 }
 
 // CommitVersionRequest commits an immutable chat prompt version.
@@ -241,8 +235,8 @@ type RegisterModelRequest struct {
 
 // ---- deployments ----------------------------------------------------------
 
-// Deployment is one immutable revision: a model, its params, and one pinned
-// version per prompt name.
+// Deployment is one immutable revision: a model, its params, and the pinned
+// prompt version. PromptPins is retained for default-only wire compatibility.
 type Deployment struct {
 	ID              string            `json:"id"`
 	Revision        int               `json:"revision"`
@@ -257,11 +251,13 @@ type Deployment struct {
 
 // CreateDeploymentRequest commits a new revision. Exactly one of ModelID (a
 // catalog UUID) or Model (a provider string, registered on the fly) is
-// required; when both are sent ModelID wins.
+// required; when both are sent ModelID wins. PromptVersionID pins a specific
+// prompt version; omitting it asks the server to pin the latest committed one.
 type CreateDeploymentRequest struct {
 	Environment     string            `json:"environment,omitempty"`
 	ModelID         string            `json:"model_id,omitempty"`
 	Model           string            `json:"model,omitempty"`
+	PromptVersionID string            `json:"prompt_version_id,omitempty"`
 	PromptPins      map[string]string `json:"prompt_pins,omitempty"`
 	Params          map[string]any    `json:"params,omitempty"`
 	ProviderOptions map[string]any    `json:"provider_options,omitempty"`

@@ -387,14 +387,13 @@ func TestGetUseCaseCarriesPromptsAndDeployments(t *testing.T) {
 	    {"id":"p1","name":"default","description":null,"created_at":"2026-09-01T10:06:00Z",
 	     "version_count":2,
 	     "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":["question"],"created_at":"2026-09-02T…"},
-	                 {"id":"v1","number":1,"message":"migrated from the app","detected_variables":["question"],"created_at":"2026-09-01T…"}]},
-	    {"id":"p2","name":"ko","description":"Korean","created_at":"2026-09-01T10:07:00Z","version_count":0,"versions":[]}
+	                 {"id":"v1","number":1,"message":"migrated from the app","detected_variables":["question"],"created_at":"2026-09-01T…"}]}
 	  ],
 	  "deployments":[
 	    {"id":"d1","revision":3,"environment":"production","model_id":"m-uuid",
 	     "model":"openai/gpt-4o-mini","params":{"temperature":0.4},
 	     "provider_options":{"only":["OpenAI"]},
-	     "prompt_pins":{"default":"v2","ko":"v9"},"created_at":"2026-09-02T…"}
+	     "prompt_pins":{"default":"v2"},"created_at":"2026-09-02T…"}
 	  ]}`)
 
 	got, err := s.client("tok").GetUseCase(ctx(), "personal", "helpdesk", "support_reply")
@@ -402,8 +401,8 @@ func TestGetUseCaseCarriesPromptsAndDeployments(t *testing.T) {
 		t.Fatalf("GetUseCase: %v", err)
 	}
 	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply")
-	if len(got.Prompts) != 2 {
-		t.Fatalf("prompts = %d, want 2", len(got.Prompts))
+	if len(got.Prompts) != 1 {
+		t.Fatalf("prompts = %d, want 1", len(got.Prompts))
 	}
 	if got.Prompts[0].VersionCount != 2 || got.Prompts[0].Versions[0].Number != 2 {
 		t.Errorf("prompt = %+v", got.Prompts[0])
@@ -484,19 +483,6 @@ func TestUpdateUseCaseEmpty(t *testing.T) {
 
 // ---- prompts --------------------------------------------------------------
 
-func TestCreatePrompt(t *testing.T) {
-	s := newStub(t, 201, `{"id":"p2","name":"ko","description":"Korean","created_at":"2026-09-01T…"}`)
-	got, err := s.client("tok").CreatePrompt(ctx(), "personal", "helpdesk", "support_reply",
-		api.CreatePromptRequest{Name: "ko", Description: "Korean"})
-	if err != nil {
-		t.Fatalf("CreatePrompt: %v", err)
-	}
-	s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/prompts")
-	if got.Name != "ko" {
-		t.Errorf("prompt = %+v", got)
-	}
-}
-
 func TestCommitVersionChat(t *testing.T) {
 	s := newStub(t, 201, `{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid",
 	  "messages":[{"role":"system","content":"You are a friendly support agent for Acme. Answer in two or three sentences; if you are not sure, say so and offer to escalate."},
@@ -505,7 +491,7 @@ func TestCommitVersionChat(t *testing.T) {
 	  "message":"migrated from the app's hardcoded prompt",
 	  "content_sha256":"abc","created_at":"2026-09-01T…"}`)
 
-	got, err := s.client("tok").CommitVersion(ctx(), "personal", "helpdesk", "support_reply", "default",
+	got, err := s.client("tok").CommitVersion(ctx(), "personal", "helpdesk", "support_reply",
 		api.CommitVersionRequest{
 			Messages: []api.Message{{Role: "system", Content: "You are a friendly support agent for Acme. Answer in two or three sentences; if you are not sure, say so and offer to escalate."}},
 			Message:  "migrated",
@@ -514,7 +500,7 @@ func TestCommitVersionChat(t *testing.T) {
 		t.Fatalf("CommitVersion: %v", err)
 	}
 	c := s.expect(http.MethodPost,
-		"/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/prompts/default/versions")
+		"/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/prompt/versions")
 	body := c.bodyMap(t)
 	if _, ok := body["text_template"]; ok {
 		t.Errorf("a chat commit must not send text_template, body = %v", body)
@@ -579,7 +565,7 @@ func TestRegisterModelSendsOnlyModelIDWhenNothingElseIsGiven(t *testing.T) {
 const deploymentJSON = `{"id":"0192d","revision":3,"environment":"production",
   "model_id":"0192m","model":"openai/gpt-4o-mini","params":{"temperature":0.4},
   "provider_options":{"allow_fallbacks":false},
-  "prompt_pins":{"default":"v2","ko":"v7"},"created_at":"2026-09-02T11:00:00Z"}`
+  "prompt_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}`
 
 func TestListDeploymentsLive(t *testing.T) {
 	s := newStub(t, 200, `{"deployments":[`+deploymentJSON+`]}`)
@@ -591,7 +577,7 @@ func TestListDeploymentsLive(t *testing.T) {
 	if c.Query != "" {
 		t.Errorf("without --environment there must be no query string, got %q", c.Query)
 	}
-	if len(got) != 1 || got[0].Revision != 3 || got[0].PromptPins["ko"] != "v7" {
+	if len(got) != 1 || got[0].Revision != 3 || got[0].PromptPins["default"] != "v2" {
 		t.Errorf("deployments = %+v", got)
 	}
 }
@@ -610,10 +596,10 @@ func TestCreateDeploymentWithCatalogUUID(t *testing.T) {
 	s := newStub(t, 201, deploymentJSON)
 	_, err := s.client("tok").CreateDeployment(ctx(), "personal", "helpdesk", "support_reply",
 		api.CreateDeploymentRequest{
-			Environment: "production",
-			ModelID:     "0192m",
-			PromptPins:  map[string]string{"default": "v2"},
-			Params:      map[string]any{"temperature": 0.4},
+			Environment:     "production",
+			ModelID:         "0192m",
+			PromptVersionID: "v2",
+			Params:          map[string]any{"temperature": 0.4},
 		})
 	if err != nil {
 		t.Fatalf("CreateDeployment: %v", err)
@@ -779,12 +765,12 @@ func TestNotFoundHintListsAvailableRevisions(t *testing.T) {
 
 func TestNotFoundHintListsAvailablePrompts(t *testing.T) {
 	s := newStub(t, 404, `{"error":{"code":"not_found","message":"no such prompt",
-	  "details":{"available_prompts":["default","ko"]}}}`)
-	_, err := s.client("tok").CommitVersion(ctx(), "personal", "helpdesk", "uc", "jp",
+	  "details":{"available_prompts":["default"]}}}`)
+	_, err := s.client("tok").CommitVersion(ctx(), "personal", "helpdesk", "uc",
 		api.CommitVersionRequest{Messages: []api.Message{{Role: "user", Content: "x"}}})
 	apiErr, _ := api.AsError(err)
-	if hint := apiErr.Hint(); !strings.Contains(hint, "default, ko") {
-		t.Errorf("Hint() = %q, want the prompt names", hint)
+	if hint := apiErr.Hint(); !strings.Contains(hint, "default") {
+		t.Errorf("Hint() = %q, want the available value", hint)
 	}
 }
 

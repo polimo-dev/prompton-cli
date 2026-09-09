@@ -17,29 +17,27 @@ func newDeployCommand(g *globals) *cobra.Command {
 		model           string
 		params          string
 		providerOptions string
-		pins            []string
+		version         string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "deploy <use-case>",
 		Short: "Commit a deployment revision",
-		Long: `Commit a new revision: one model, its params, and one pinned prompt version
-per prompt name. A revision is a pin, not a router — the moment it is committed
-it is the live configuration for that (use case, environment).
+		Long: `Commit a new revision: one model, its params, and one pinned prompt version.
+A revision is a pin, not a router — the moment it is committed it is the live
+configuration for that (use case, environment).
 
 --model takes either a catalog UUID or a provider string like
 "openai/gpt-4o-mini"; a provider string that is not in the catalog yet is
 registered on the way past.
 
---pin takes name=version, where version is a version number, the word "latest",
-or a version UUID. Omitting --pin entirely pins the newest committed version of
-every prompt. If the use case has a "default" prompt it must end up pinned —
-that is what the app gets when it names no prompt.
+--version takes a version number, the word "latest", or a version UUID.
+Omitting --version pins the latest committed prompt version.
 
-Promoting is the same command against another environment with the same pins.`,
+Promoting is the same command against another environment with the same version.`,
 		Example: "  " + meta.Name + " deploy support_reply --environment production \\\n" +
 			"      --model openai/gpt-4o-mini --params '{\"temperature\":0.3}' \\\n" +
-			"      --pin default=1 --pin ko=latest",
+			"      --version 1",
 		Args: exactArgs(1, "<use-case>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(model) == "" {
@@ -64,25 +62,25 @@ Promoting is the same command against another environment with the same pins.`,
 				return err
 			}
 
-			// Version numbers and "latest" have to become version UUIDs, and
-			// only the use case knows the mapping. Fetch it only when a pin
-			// actually needs resolving.
-			var prompts []api.Prompt
-			if needsPromptLookup(pins) {
-				uc, err := client.GetUseCase(cmd.Context(), org, project, useCase)
-				if err != nil {
-					return err
+			promptVersionID := ""
+			if version != "" && !strings.EqualFold(version, "latest") {
+				if isUUID(version) {
+					promptVersionID = version
+				} else {
+					uc, err := client.GetUseCase(cmd.Context(), org, project, useCase)
+					if err != nil {
+						return err
+					}
+					promptVersionID, err = resolveSingleVersion(version, uc.Prompts)
+					if err != nil {
+						return err
+					}
 				}
-				prompts = uc.Prompts
-			}
-			pinMap, err := parsePins(pins, prompts)
-			if err != nil {
-				return err
 			}
 
 			req := api.CreateDeploymentRequest{
 				Environment:     environment,
-				PromptPins:      pinMap,
+				PromptVersionID: promptVersionID,
 				Params:          paramsMap,
 				ProviderOptions: optionsMap,
 			}
@@ -119,7 +117,7 @@ Promoting is the same command against another environment with the same pins.`,
 	cmd.Flags().StringVar(&model, "model", "", "catalog UUID or provider model string")
 	cmd.Flags().StringVar(&params, "params", "", "JSON object of model params, layered over the use case defaults")
 	cmd.Flags().StringVar(&providerOptions, "provider-options", "", "JSON object of provider options, layered over the model's")
-	cmd.Flags().StringArrayVar(&pins, "pin", nil, "name=version (repeatable); version is a number, \"latest\", or a UUID")
+	cmd.Flags().StringVar(&version, "version", "", "prompt version to deploy: number, \"latest\", or UUID (server default: latest)")
 	return cmd
 }
 
@@ -224,21 +222,6 @@ configuration.`,
 	cmd.Flags().StringVar(&environment, "environment", "", "environment slug (server default: production)")
 	cmd.Flags().IntVar(&revision, "revision", 0, "revision number to restore")
 	return cmd
-}
-
-// needsPromptLookup reports whether any pin is expressed as something other
-// than a version UUID, which is the only case that needs the use case fetched.
-func needsPromptLookup(pins []string) bool {
-	for _, pin := range pins {
-		_, value, ok := strings.Cut(pin, "=")
-		if !ok {
-			return true
-		}
-		if !isUUID(strings.TrimSpace(value)) {
-			return true
-		}
-	}
-	return false
 }
 
 func deploymentHeaders() []string {
