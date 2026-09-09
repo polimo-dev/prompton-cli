@@ -34,8 +34,7 @@ func newPromptsOpenCommand(g *globals) *cobra.Command {
 parameter, which is how one use case serves several variants (languages, for
 instance).
 
-Chat and text use cases already have "default"; opening it again is a
-conflict.`,
+Chat use cases already have "default"; opening it again is a conflict.`,
 		Example: "  " + meta.Name + " prompts open support_reply ko --description Korean",
 		Args:    exactArgs(2, "<use-case> <name>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -102,8 +101,8 @@ Versions are immutable and committing alone changes nothing at runtime — a
 version goes live when a deployment revision pins it.
 
 The file is read as chat messages when it holds a JSON array (or an object with
-a "messages" array), and as a text template otherwise. Pass --format to decide
-explicitly, or "-" as the file to read stdin.`,
+a "messages" array). Any other non-empty file is committed as one user message.
+Pass "-" as the file to read stdin.`,
 		Example: "  " + meta.Name + " prompts commit support_reply default \\\n" +
 			"      --file messages.json --message 'migrated from the app'",
 		Args: exactArgs(2, "<use-case> <name>"),
@@ -152,10 +151,11 @@ explicitly, or "-" as the file to read stdin.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&file, "file", "", "messages JSON or text template to commit (\"-\" for stdin)")
+	cmd.Flags().StringVar(&file, "file", "", "messages JSON or plain text to commit (\"-\" for stdin)")
 	cmd.Flags().StringVar(&engine, "engine", "", "template engine: liquid (default) or raw")
 	cmd.Flags().StringVar(&message, "message", "", "commit message explaining the change")
-	cmd.Flags().StringVar(&format, "format", "auto", "how to read the file: auto, messages, or text")
+	cmd.Flags().StringVar(&format, "format", "auto", "how to read the file: auto or messages")
+	_ = cmd.Flags().MarkHidden("format")
 	return cmd
 }
 
@@ -163,11 +163,6 @@ explicitly, or "-" as the file to read stdin.`,
 func buildCommit(raw []byte, format, name string) (api.CommitVersionRequest, error) {
 	text := string(raw)
 	switch format {
-	case "text":
-		if strings.TrimSpace(text) == "" {
-			return api.CommitVersionRequest{}, usagef("%s is empty", name)
-		}
-		return api.CommitVersionRequest{TextTemplate: text}, nil
 	case "messages":
 		msgs, err := decodeMessages(raw)
 		if err != nil {
@@ -181,9 +176,9 @@ func buildCommit(raw []byte, format, name string) (api.CommitVersionRequest, err
 		if strings.TrimSpace(text) == "" {
 			return api.CommitVersionRequest{}, usagef("%s is empty", name)
 		}
-		return api.CommitVersionRequest{TextTemplate: text}, nil
+		return api.CommitVersionRequest{Messages: []api.Message{{Role: "user", Content: text}}}, nil
 	default:
-		return api.CommitVersionRequest{}, usagef("--format must be auto, messages, or text")
+		return api.CommitVersionRequest{}, usagef("--format must be auto or messages")
 	}
 }
 

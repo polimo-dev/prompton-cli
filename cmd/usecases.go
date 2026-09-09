@@ -12,8 +12,7 @@ import (
 	"github.com/polimo-dev/prompton-cli/internal/output"
 )
 
-// validKinds are the use-case kinds the API accepts.
-var validKinds = []string{"chat", "text", "embedding"}
+const useCaseKind = "chat"
 
 func newUseCasesCommand(g *globals) *cobra.Command {
 	cmd := &cobra.Command{
@@ -151,9 +150,9 @@ func newUseCasesCreateCommand(g *globals) *cobra.Command {
 		Long: `Create a use case: one per place the app calls an LLM.
 
 The key is the app's contract — lowercase [a-z0-9_], starting with a letter —
-and cannot be changed later. For kind chat and text a "default" prompt is
-created alongside, ready for its first version.`,
-		Example: "  " + meta.Name + " use-cases create support_reply --kind chat \\\n" +
+and cannot be changed later. A "default" prompt is created alongside, ready
+for its first version.`,
+		Example: "  " + meta.Name + " use-cases create support_reply \\\n" +
 			"      --name 'Support reply' --default-params '{\"temperature\":0.3}'",
 		Args: exactArgs(1, "<key>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -165,8 +164,8 @@ created alongside, ready for its first version.`,
 			if err != nil {
 				return err
 			}
-			if !validKind(kind) {
-				return usagef("--kind must be one of %s", strings.Join(validKinds, ", "))
+			if kind != useCaseKind {
+				return usagef("--kind must be chat")
 			}
 			params, err := parseJSONObject("default-params", defaultParams)
 			if err != nil {
@@ -216,7 +215,8 @@ created alongside, ready for its first version.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&kind, "kind", "chat", "chat, text, or embedding")
+	cmd.Flags().StringVar(&kind, "kind", useCaseKind, "use-case kind")
+	_ = cmd.Flags().MarkHidden("kind")
 	cmd.Flags().StringVar(&name, "name", "", "display name (defaults to the key)")
 	cmd.Flags().StringVar(&description, "description", "", "what this call site does")
 	cmd.Flags().StringVar(&inputSchemaFile, "input-schema-file", "", "JSON file declaring input variables (\"-\" for stdin)")
@@ -351,15 +351,6 @@ func (g *globals) readInputSchema(path string) ([]api.InputField, error) {
 		return nil, usagef("--input-schema-file %s must hold a JSON array of fields, or an object with an \"input_schema\" array", path)
 	}
 	return wrapper.InputSchema, nil
-}
-
-func validKind(kind string) bool {
-	for _, k := range validKinds {
-		if kind == k {
-			return true
-		}
-	}
-	return false
 }
 
 func variableNames(fields []api.InputField) string {

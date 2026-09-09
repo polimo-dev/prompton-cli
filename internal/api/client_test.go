@@ -527,31 +527,6 @@ func TestCommitVersionChat(t *testing.T) {
 	}
 }
 
-func TestCommitVersionText(t *testing.T) {
-	s := newStub(t, 201, `{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid",
-	  "messages":null,"text_template":"billing, refund","detected_variables":[],
-	  "message":null,"content_sha256":"abc","created_at":"2026-09-01T…"}`)
-
-	got, err := s.client("tok").CommitVersion(ctx(), "personal", "helpdesk", "kw", "default",
-		api.CommitVersionRequest{TextTemplate: "billing, refund"})
-	if err != nil {
-		t.Fatalf("CommitVersion: %v", err)
-	}
-	body := s.only().bodyMap(t)
-	if body["text_template"] != "billing, refund" {
-		t.Errorf("request body = %v", body)
-	}
-	if _, ok := body["messages"]; ok {
-		t.Errorf("a text commit must not send messages, body = %v", body)
-	}
-	if got.TextTemplate == nil || *got.TextTemplate != "billing, refund" {
-		t.Errorf("text_template = %v", got.TextTemplate)
-	}
-	if got.Message != nil {
-		t.Error("a null commit message must decode as nil")
-	}
-}
-
 // ---- models ---------------------------------------------------------------
 
 const modelJSON = `{"id":"0192m","provider":"openrouter","model_id":"openai/gpt-4o-mini",
@@ -806,7 +781,7 @@ func TestNotFoundHintListsAvailablePrompts(t *testing.T) {
 	s := newStub(t, 404, `{"error":{"code":"not_found","message":"no such prompt",
 	  "details":{"available_prompts":["default","ko"]}}}`)
 	_, err := s.client("tok").CommitVersion(ctx(), "personal", "helpdesk", "uc", "jp",
-		api.CommitVersionRequest{TextTemplate: "x"})
+		api.CommitVersionRequest{Messages: []api.Message{{Role: "user", Content: "x"}}})
 	apiErr, _ := api.AsError(err)
 	if hint := apiErr.Hint(); !strings.Contains(hint, "default, ko") {
 		t.Errorf("Hint() = %q, want the prompt names", hint)

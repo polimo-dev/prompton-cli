@@ -668,6 +668,23 @@ func TestUseCasesCreateRejectsAnUnknownKind(t *testing.T) {
 	}
 }
 
+func TestUseCasesCreateRejectsOldKinds(t *testing.T) {
+	for _, kind := range []string{"text", "embedding"} {
+		t.Run(kind, func(t *testing.T) {
+			h := newHarness(t)
+			h.login(config.File{Org: "personal", Project: "helpdesk"})
+
+			got := h.run("use-cases", "create", "x", "--kind", kind)
+			if got.code != 2 {
+				t.Errorf("exit = %d, want 2", got.code)
+			}
+			if len(h.requests) != 0 {
+				t.Errorf("a bad kind must be caught before any request, got %v", h.paths())
+			}
+		})
+	}
+}
+
 func TestUseCasesCreateRejectsBadJSONParams(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
@@ -771,12 +788,13 @@ func TestPromptsCommitDetectsChatMessages(t *testing.T) {
 	}
 }
 
-func TestPromptsCommitDetectsATextTemplate(t *testing.T) {
+func TestPromptsCommitWrapsPlainTextAsAUserMessage(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/keywords/prompts/default/versions", 201,
-		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid","messages":null,
-		  "text_template":"billing, refund","detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
+		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid",
+		  "messages":[{"role":"user","content":"billing, refund, invoice"}],
+		  "text_template":null,"detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
 
 	file := writeTemp(t, "template.txt", "billing, refund, invoice")
 
@@ -785,53 +803,52 @@ func TestPromptsCommitDetectsATextTemplate(t *testing.T) {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	body := h.lastBody()
-	if body["text_template"] != "billing, refund, invoice" {
-		t.Errorf("body = %v", body)
+	msgs, ok := body["messages"].([]any)
+	if !ok || len(msgs) != 1 {
+		t.Fatalf("messages = %v", body["messages"])
 	}
-	if _, ok := body["messages"]; ok {
-		t.Errorf("a text commit must not send messages: %v", body)
+	msg := msgs[0].(map[string]any)
+	if msg["role"] != "user" || msg["content"] != "billing, refund, invoice" {
+		t.Errorf("message = %v", msg)
+	}
+	if _, ok := body["text_template"]; ok {
+		t.Errorf("a chat-only commit must not send text_template: %v", body)
 	}
 }
 
-func TestPromptsCommitTreatsLiquidAsText(t *testing.T) {
+func TestPromptsCommitWrapsLiquidAsAUserMessage(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/kw/prompts/default/versions", 201,
-		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid","messages":null,
-		  "text_template":"x","detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
+		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid",
+		  "messages":[{"role":"user","content":"x"}],
+		  "text_template":null,"detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
 
-	// A liquid template opens with "{%", which must not be mistaken for JSON.
 	file := writeTemp(t, "template.txt", "{% for t in question %}{{ t }}\n{% endfor %}")
 
 	got := h.run("prompts", "commit", "kw", "default", "--file", file)
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	if _, ok := h.lastBody()["text_template"]; !ok {
-		t.Errorf("body = %v, want a text template", h.lastBody())
+	if _, ok := h.lastBody()["messages"]; !ok {
+		t.Errorf("body = %v, want chat messages", h.lastBody())
+	}
+	if _, ok := h.lastBody()["text_template"]; ok {
+		t.Errorf("body = %v, must not send text_template", h.lastBody())
 	}
 }
 
-func TestPromptsCommitFormatOverride(t *testing.T) {
+func TestPromptsCommitRejectsTextFormat(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/kw/prompts/default/versions", 201,
-		`{"id":"v1","prompt_id":"p1","number":1,"engine":"raw","messages":null,
-		  "text_template":"[]","detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
-
-	// Valid JSON that is meant as a text template.
 	file := writeTemp(t, "odd.txt", `[{"role":"system","content":"hi"}]`)
 
 	got := h.run("prompts", "commit", "kw", "default", "--file", file, "--format", "text", "--engine", "raw")
-	if got.code != 0 {
-		t.Fatalf("exit = %d: %s", got.code, got.stderr)
+	if got.code != 2 {
+		t.Fatalf("exit = %d, want 2: %s", got.code, got.stderr)
 	}
-	body := h.lastBody()
-	if _, ok := body["text_template"]; !ok {
-		t.Errorf("--format text must win over content sniffing: %v", body)
-	}
-	if body["engine"] != "raw" {
-		t.Errorf("engine = %v", body["engine"])
+	if len(h.requests) != 0 {
+		t.Errorf("text format must be caught before any request, got %v", h.paths())
 	}
 }
 

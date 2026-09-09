@@ -177,13 +177,11 @@ type CreatePromptRequest struct {
 	Description string `json:"description,omitempty"`
 }
 
-// CommitVersionRequest commits an immutable version. Exactly one of Messages
-// (kind chat) or TextTemplate (kind text) is sent.
+// CommitVersionRequest commits an immutable chat prompt version.
 type CommitVersionRequest struct {
-	Messages     []Message `json:"messages,omitempty"`
-	TextTemplate string    `json:"text_template,omitempty"`
-	Engine       string    `json:"engine,omitempty"`
-	Message      string    `json:"message,omitempty"`
+	Messages []Message `json:"messages,omitempty"`
+	Engine   string    `json:"engine,omitempty"`
+	Message  string    `json:"message,omitempty"`
 }
 
 // PromptVersion is the full committed version.

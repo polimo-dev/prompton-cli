@@ -234,8 +234,7 @@ func (c *Client) GetUseCase(ctx context.Context, org, project, key string) (*Use
 	return &out, nil
 }
 
-// CreateUseCase creates a use case. For kind chat/text a "default" prompt is
-// born with it.
+// CreateUseCase creates a use case. A "default" prompt is born with it.
 func (c *Client) CreateUseCase(ctx context.Context, org, project string, req CreateUseCaseRequest) (*UseCase, error) {
 	var out UseCase
 	if err := c.do(ctx, http.MethodPost, useCasesPath(org, project), req, &out); err != nil {

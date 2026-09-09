@@ -12,7 +12,7 @@ turns "already exists" into something a re-run can survive.
 ```
 prompton login
 prompton projects create helpdesk
-prompton use-cases create support_reply --kind chat
+prompton use-cases create support_reply
 prompton prompts commit support_reply default --file messages.json
 prompton deploy support_reply --model openai/gpt-4o-mini
 prompton api-keys issue --name 'Helpdesk server'
@@ -138,7 +138,6 @@ contract and cannot be changed later.
 
 ```sh
 prompton use-cases create support_reply \
-  --kind chat \
   --name 'Support reply' \
   --description 'Answers a customer message in the support inbox' \
   --input-schema-file schema.json \
@@ -156,8 +155,7 @@ prompton use-cases create support_reply \
 ]
 ```
 
-For `--kind chat` and `--kind text` a prompt named `default` is created with
-the use case. `--kind embedding` has no prompts at all.
+A prompt named `default` is created with the use case.
 
 ### 3. Commit the app's existing prompt as version 1
 
@@ -177,9 +175,8 @@ prompton prompts commit support_reply default \
 ```
 
 A file holding a JSON array (or an object with a `messages` array) is committed
-as chat messages; anything else is committed as a text template — so a Liquid
-template starting with `{%` is read as text, not misparsed as JSON. Force the
-decision with `--format messages|text`, and pass `--file -` to read stdin.
+as chat messages. Any other non-empty file is committed as one `user` message.
+Pass `--file -` to read stdin.
 
 Open more prompt names when one use case serves several variants. The name is
 what the app sends as its `prompt` parameter:
@@ -302,7 +299,7 @@ Every command accepts the global flags below.
 |---|---|
 | `prompton use-cases list` | Every call site in the project |
 | `prompton use-cases get <key>` | The use case with its prompts and live deployments |
-| `prompton use-cases create <key> --kind chat\|text\|embedding [--name N] [--description D] [--input-schema-file F] [--default-params JSON] [--tags a,b]` | Creates a use case |
+| `prompton use-cases create <key> [--name N] [--description D] [--input-schema-file F] [--default-params JSON] [--tags a,b]` | Creates a chat use case |
 | `prompton use-cases update <key> [--name N] [--description D] [--tags a,b] [--input-schema-file F] [--default-params JSON]` | Changes only the fields given; schema and params are replaced, not merged |
 
 ### Prompts
@@ -310,7 +307,7 @@ Every command accepts the global flags below.
 | Command | What it does |
 |---|---|
 | `prompton prompts open <use-case> <name> [--description D]` | Opens a new prompt name |
-| `prompton prompts commit <use-case> <name> --file F [--engine liquid\|raw] [--message M] [--format auto\|messages\|text]` | Commits an immutable version |
+| `prompton prompts commit <use-case> <name> --file F [--engine liquid\|raw] [--message M]` | Commits an immutable chat version |
 
 ### Models
 
@@ -390,7 +387,7 @@ So a provisioning script runs cleanly the second time:
 ```sh
 set -e
 prompton projects create helpdesk --idempotent --json > project.json
-prompton use-cases create support_reply --kind chat --idempotent --json > uc.json
+prompton use-cases create support_reply --idempotent --json > uc.json
 ```
 
 ### Quiet output
