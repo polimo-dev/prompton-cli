@@ -12,29 +12,30 @@ import (
 	"github.com/polimo-dev/prompton-cli/internal/output"
 )
 
-const useCaseKind = "chat"
+const promptKind = "chat"
 
-func newUseCasesCommand(g *globals) *cobra.Command {
+func newPromptCommand(g *globals) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "use-cases",
-		Aliases: []string{"use-case", "usecases"},
-		Short:   "Use cases — one per LLM call site",
+		Use:     "prompt",
+		Aliases: []string{"prompts"},
+		Short:   "Prompts — one per LLM call site",
 		Args:    noArgs,
 		RunE:    func(c *cobra.Command, _ []string) error { return c.Help() },
 	}
 	cmd.AddCommand(
-		newUseCasesListCommand(g),
-		newUseCasesGetCommand(g),
-		newUseCasesCreateCommand(g),
-		newUseCasesUpdateCommand(g),
+		newPromptListCommand(g),
+		newPromptGetCommand(g),
+		newPromptCreateCommand(g),
+		newPromptUpdateCommand(g),
+		newPromptCommitCommand(g),
 	)
 	return cmd
 }
 
-func newUseCasesListCommand(g *globals) *cobra.Command {
+func newPromptListCommand(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List the project's use cases",
+		Short: "List the project's prompts",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, _, err := g.client()
@@ -45,20 +46,20 @@ func newUseCasesListCommand(g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			useCases, err := client.ListUseCases(cmd.Context(), org, project)
+			prompts, err := client.ListPrompts(cmd.Context(), org, project)
 			if err != nil {
 				return err
 			}
 			p := g.printer()
 			if g.asJSON {
-				return p.PrintJSON(map[string]any{"use_cases": useCases})
+				return p.PrintJSON(map[string]any{"prompts": prompts})
 			}
-			rows := make([][]string, 0, len(useCases))
-			for _, uc := range useCases {
+			rows := make([][]string, 0, len(prompts))
+			for _, prompt := range prompts {
 				rows = append(rows, []string{
-					uc.Key, uc.Name, uc.Kind,
-					output.Dash(variableNames(uc.InputSchema)),
-					output.Dash(output.Compact(uc.DefaultParams)),
+					prompt.Key, prompt.Name, prompt.Kind,
+					output.Dash(variableNames(prompt.InputSchema)),
+					output.Dash(output.Compact(prompt.DefaultParams)),
 				})
 			}
 			p.Table([]string{"KEY", "NAME", "KIND", "INPUTS", "DEFAULT PARAMS"}, rows)
@@ -67,10 +68,10 @@ func newUseCasesListCommand(g *globals) *cobra.Command {
 	}
 }
 
-func newUseCasesGetCommand(g *globals) *cobra.Command {
+func newPromptGetCommand(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <key>",
-		Short: "Show a use case with its prompts and live deployments",
+		Short: "Show a prompt with recent versions and live deployments",
 		Args:  exactArgs(1, "<key>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := g.client()
@@ -81,60 +82,61 @@ func newUseCasesGetCommand(g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			uc, err := client.GetUseCase(cmd.Context(), org, project, args[0])
+			prompt, err := client.GetPrompt(cmd.Context(), org, project, args[0])
 			if err != nil {
 				return err
 			}
 			p := g.printer()
 			if g.asJSON {
-				return p.PrintJSON(uc)
+				return p.PrintJSON(prompt)
 			}
 
 			p.Fields([][2]string{
-				{"Key", uc.Key},
-				{"Name", uc.Name},
-				{"Kind", uc.Kind},
-				{"Description", output.Dash(output.Str(uc.Description))},
-				{"Tags", output.Dash(output.Join(uc.Tags))},
-				{"Default params", output.Dash(output.Compact(uc.DefaultParams))},
-				{"Id", uc.ID},
+				{"Key", prompt.Key},
+				{"Name", prompt.Name},
+				{"Kind", prompt.Kind},
+				{"Description", output.Dash(output.Str(prompt.Description))},
+				{"Tags", output.Dash(output.Join(prompt.Tags))},
+				{"Default params", output.Dash(output.Compact(prompt.DefaultParams))},
+				{"Id", prompt.ID},
 			})
 
-			if len(uc.InputSchema) > 0 {
+			if len(prompt.InputSchema) > 0 {
 				p.Info("")
 				p.Info("Inputs:")
-				rows := make([][]string, 0, len(uc.InputSchema))
-				for _, f := range uc.InputSchema {
+				rows := make([][]string, 0, len(prompt.InputSchema))
+				for _, f := range prompt.InputSchema {
 					rows = append(rows, []string{f.Name, f.Type, output.Bool(f.Required), output.Dash(output.Str(f.Description))})
 				}
 				p.Table([]string{"NAME", "TYPE", "REQUIRED", "DESCRIPTION"}, rows)
 			}
 
-			if len(uc.Prompts) > 0 {
+			if versions := promptVersions(prompt); len(versions) > 0 {
 				p.Info("")
-				p.Info("Prompts:")
-				rows := make([][]string, 0, len(uc.Prompts))
-				for _, pr := range uc.Prompts {
-					latest := "-"
-					if len(pr.Versions) > 0 {
-						latest = fmt.Sprintf("v%d", maxVersion(pr.Versions).Number)
-					}
-					rows = append(rows, []string{pr.Name, output.Int(pr.VersionCount), latest, output.Dash(output.Str(pr.Description))})
+				p.Info("Versions:")
+				rows := make([][]string, 0, len(versions))
+				for _, version := range versions {
+					rows = append(rows, []string{
+						fmt.Sprintf("v%d", version.Number),
+						output.Dash(output.Str(version.Message)),
+						output.Dash(output.Join(version.DetectedVariables)),
+						output.Date(version.CreatedAt),
+					})
 				}
-				p.Table([]string{"NAME", "VERSIONS", "LATEST", "DESCRIPTION"}, rows)
+				p.Table([]string{"VERSION", "MESSAGE", "VARIABLES", "CREATED"}, rows)
 			}
 
-			if len(uc.Deployments) > 0 {
+			if len(prompt.Deployments) > 0 {
 				p.Info("")
 				p.Info("Live deployments:")
-				p.Table(deploymentHeaders(), deploymentRows(uc.Deployments))
+				p.Table(deploymentHeaders(), deploymentRows(prompt.Deployments))
 			}
 			return nil
 		},
 	}
 }
 
-func newUseCasesCreateCommand(g *globals) *cobra.Command {
+func newPromptCreateCommand(g *globals) *cobra.Command {
 	var (
 		kind            string
 		name            string
@@ -146,13 +148,13 @@ func newUseCasesCreateCommand(g *globals) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "create <key>",
-		Short: "Create a use case",
-		Long: `Create a use case: one per place the app calls an LLM.
+		Short: "Create a prompt",
+		Long: `Create a prompt: one per place the app calls an LLM.
 
-The key is the app's contract — lowercase [a-z0-9_], starting with a letter —
-and cannot be changed later. A "default" prompt is created alongside, ready
-for its first version.`,
-		Example: "  " + meta.Name + " use-cases create support_reply \\\n" +
+The key is the app's contract — 1–40 lowercase letters, digits or underscores,
+starting with a letter —
+and cannot be changed later.`,
+		Example: "  " + meta.Name + " prompt create support_reply \\\n" +
 			"      --name 'Support reply' --default-params '{\"temperature\":0.3}'",
 		Args: exactArgs(1, "<key>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -164,7 +166,7 @@ for its first version.`,
 			if err != nil {
 				return err
 			}
-			if kind != useCaseKind {
+			if kind != promptKind {
 				return usagef("--kind must be chat")
 			}
 			params, err := parseJSONObject("default-params", defaultParams)
@@ -177,7 +179,7 @@ for its first version.`,
 			}
 
 			key := args[0]
-			uc, createErr := client.CreateUseCase(cmd.Context(), org, project, api.CreateUseCaseRequest{
+			prompt, createErr := client.CreatePrompt(cmd.Context(), org, project, api.CreatePromptRequest{
 				Key:           key,
 				Name:          name,
 				Kind:          kind,
@@ -186,36 +188,36 @@ for its first version.`,
 				DefaultParams: params,
 				Tags:          tags,
 			})
-			var found api.UseCase
+			var found api.Prompt
 			wasExisting, err := existing(createErr, &found)
 			if err != nil {
 				return err
 			}
 			if wasExisting {
-				uc = &found
+				prompt = &found
 			}
 
 			p := g.printer()
 			if g.asJSON {
-				if err := p.PrintJSON(uc); err != nil {
+				if err := p.PrintJSON(prompt); err != nil {
 					return err
 				}
 			} else {
 				p.Fields([][2]string{
-					{"Key", uc.Key},
-					{"Name", uc.Name},
-					{"Kind", uc.Kind},
-					{"Id", uc.ID},
+					{"Key", prompt.Key},
+					{"Name", prompt.Name},
+					{"Kind", prompt.Kind},
+					{"Id", prompt.ID},
 				})
 			}
 			if wasExisting {
-				return g.alreadyExists("use case", key)
+				return g.alreadyExists("prompt", key)
 			}
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&kind, "kind", useCaseKind, "use-case kind")
+	cmd.Flags().StringVar(&kind, "kind", promptKind, "prompt kind")
 	_ = cmd.Flags().MarkHidden("kind")
 	cmd.Flags().StringVar(&name, "name", "", "display name (defaults to the key)")
 	cmd.Flags().StringVar(&description, "description", "", "what this call site does")
@@ -225,7 +227,7 @@ for its first version.`,
 	return cmd
 }
 
-func newUseCasesUpdateCommand(g *globals) *cobra.Command {
+func newPromptUpdateCommand(g *globals) *cobra.Command {
 	var (
 		name            string
 		description     string
@@ -236,10 +238,10 @@ func newUseCasesUpdateCommand(g *globals) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "update <key>",
-		Short: "Change a use case's describable fields",
+		Short: "Change a prompt's describable fields",
 		Long: `Update only the fields you pass. Input schema and default params are replaced
 wholesale, not merged. The key and kind are the app's contract and cannot
-change — make a new use case instead.`,
+change — make a new prompt instead.`,
 		Args: exactArgs(1, "<key>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := g.client()
@@ -251,7 +253,7 @@ change — make a new use case instead.`,
 				return err
 			}
 
-			var req api.UpdateUseCaseRequest
+			var req api.UpdatePromptRequest
 			flags := cmd.Flags()
 			if flags.Changed("name") {
 				req.Name = &name
@@ -290,21 +292,21 @@ change — make a new use case instead.`,
 				return usagef("nothing to update — pass at least one of --name, --description, --tags, --input-schema-file, --default-params")
 			}
 
-			uc, err := client.UpdateUseCase(cmd.Context(), org, project, args[0], req)
+			prompt, err := client.UpdatePrompt(cmd.Context(), org, project, args[0], req)
 			if err != nil {
 				return err
 			}
 			p := g.printer()
 			if g.asJSON {
-				return p.PrintJSON(uc)
+				return p.PrintJSON(prompt)
 			}
 			p.Fields([][2]string{
-				{"Key", uc.Key},
-				{"Name", uc.Name},
-				{"Kind", uc.Kind},
-				{"Description", output.Dash(output.Str(uc.Description))},
-				{"Tags", output.Dash(output.Join(uc.Tags))},
-				{"Default params", output.Dash(output.Compact(uc.DefaultParams))},
+				{"Key", prompt.Key},
+				{"Name", prompt.Name},
+				{"Kind", prompt.Kind},
+				{"Description", output.Dash(output.Str(prompt.Description))},
+				{"Tags", output.Dash(output.Join(prompt.Tags))},
+				{"Default params", output.Dash(output.Compact(prompt.DefaultParams))},
 			})
 			return nil
 		},

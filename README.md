@@ -12,8 +12,8 @@ turns "already exists" into something a re-run can survive.
 ```
 prompton login
 prompton projects create helpdesk
-prompton use-cases create support_reply
-prompton prompts commit support_reply --file messages.json
+prompton prompt create support_reply
+prompton prompt commit support_reply --file messages.json
 prompton deploy support_reply --model openai/gpt-4o-mini
 prompton api-keys issue --name 'Helpdesk server'
 ```
@@ -131,13 +131,13 @@ prompton use --project helpdesk
 `production` (protected) and `staging` environments are created with the
 project.
 
-### 2. Create a use case per call site
+### 2. Create a prompt per call site
 
-One use case for each place the app calls an LLM. The key is the app's
+One prompt for each place the app calls an LLM. The key is the app's
 contract and cannot be changed later.
 
 ```sh
-prompton use-cases create support_reply \
+prompton prompt create support_reply \
   --name 'Support reply' \
   --description 'Answers a customer message in the support inbox' \
   --input-schema-file schema.json \
@@ -155,12 +155,12 @@ prompton use-cases create support_reply \
 ]
 ```
 
-A single prompt is created with the use case.
+The prompt is created with its initial default template; callers still address only the prompt key.
 
 ### 3. Commit the app's existing prompt as version 1
 
 ```sh
-prompton prompts commit support_reply \
+prompton prompt commit support_reply \
   --file messages.json \
   --message "migrated from the app's hardcoded prompt"
 ```
@@ -183,7 +183,7 @@ version goes live only when a deployment pins it.
 
 If the same call site needs language, tone, or tenant variants, keep them in
 one prompt with variables and Liquid branches. If the purpose differs, create a
-separate use case.
+separate prompt.
 
 ### 4. Pin a deployment — the app's current model, unchanged
 
@@ -199,7 +199,7 @@ prompton deploy support_reply \
 
 A revision is a pin, not a router: one model, its params, and one prompt
 version. Committing it makes it the live configuration for that
-(use case, environment) pair.
+(prompt, environment) pair.
 
 - `--model` takes a provider string or a catalog UUID. A provider string that
   is not in the catalog is registered on the way past.
@@ -216,7 +216,7 @@ prompton api-keys issue --name 'Helpdesk server' --scopes read,logs
 ```
 
 The secret is printed once and never again. It is scoped to this project and
-to deployed use-case reads (`read`) plus monitoring logs (`logs`). One key
+to deployed prompt reads (`read`) plus monitoring logs (`logs`). One key
 covers every environment; the app names the environment in each request.
 
 For a script:
@@ -227,8 +227,8 @@ PTN_KEY=$(prompton api-keys issue --quiet)
 
 ### 6. Point the app at PromptOn
 
-Replace the hard-coded prompt and model with a deployed use-case fetch. The
-runtime API (`/api/v1/use-cases`, `/api/v1/use-cases/:key/prompt`,
+Replace the hard-coded prompt and model with a deployed prompt fetch. The
+runtime API (`/api/v1/prompts`, `/api/v1/prompts/:key/render`,
 `/api/v1/logs`) is documented
 separately; the app calls its LLM provider directly, with its own key, so
 PromptOn stays out of the request path.
@@ -239,7 +239,7 @@ Confirm onboarding is done by filling a deployed prompt with the runtime key:
 curl -sS -H "Authorization: Bearer $PTN_KEY" \
   -H 'content-type: application/json' \
   -d '{"variables":{"question":"Where is my order?"},"environment":"production"}' \
-  https://app.prompton.ai/api/v1/use-cases/support_reply/prompt
+  https://app.prompton.ai/api/v1/prompts/support_reply/render
 ```
 
 ### 7. Optional: connect a provider key
@@ -255,7 +255,7 @@ prompton provider-key status
 ### 8. Operate
 
 ```sh
-prompton use-cases get support_reply           # what is live right now
+prompton prompt get support_reply           # what is live right now
 prompton deployments list support_reply
 prompton deployments list support_reply --environment production   # history
 prompton rollback support_reply --environment production --revision 2
@@ -287,20 +287,20 @@ Every command accepts the global flags below.
 | `prompton projects list` | The organization's projects |
 | `prompton projects create <slug> [--description D] [--timezone TZ]` | Creates a project plus its environments |
 
-### Use cases
+### Prompts
 
 | Command | What it does |
 |---|---|
-| `prompton use-cases list` | Every call site in the project |
-| `prompton use-cases get <key>` | The use case with its prompt versions and live deployments |
-| `prompton use-cases create <key> [--name N] [--description D] [--input-schema-file F] [--default-params JSON] [--tags a,b]` | Creates a chat use case |
-| `prompton use-cases update <key> [--name N] [--description D] [--tags a,b] [--input-schema-file F] [--default-params JSON]` | Changes only the fields given; schema and params are replaced, not merged |
+| `prompton prompt list` | Every call site in the project |
+| `prompton prompt get <key>` | The prompt with its versions and live deployments |
+| `prompton prompt create <key> [--name N] [--description D] [--input-schema-file F] [--default-params JSON] [--tags a,b]` | Creates a chat prompt |
+| `prompton prompt update <key> [--name N] [--description D] [--tags a,b] [--input-schema-file F] [--default-params JSON]` | Changes only the fields given; schema and params are replaced, not merged |
 
 ### Prompts
 
 | Command | What it does |
 |---|---|
-| `prompton prompts commit <use-case> --file F [--engine liquid\|raw] [--message M]` | Commits an immutable chat version |
+| `prompton prompt commit <prompt> --file F [--engine liquid\|raw] [--message M]` | Commits an immutable chat version |
 
 ### Models
 
@@ -313,9 +313,9 @@ Every command accepts the global flags below.
 
 | Command | What it does |
 |---|---|
-| `prompton deploy <use-case> --model M [--environment E] [--params JSON] [--provider-options JSON] [--version latest\|N\|UUID]` | Commits a revision |
-| `prompton deployments list <use-case> [--environment E]` | Live revisions, or one environment's history |
-| `prompton rollback <use-case> --revision N [--environment E]` | Re-commits a past revision |
+| `prompton deploy <prompt> --model M [--environment E] [--params JSON] [--provider-options JSON] [--version latest\|N\|UUID]` | Commits a revision |
+| `prompton deployments list <prompt> [--environment E]` | Live revisions, or one environment's history |
+| `prompton rollback <prompt> --revision N [--environment E]` | Re-commits a past revision |
 
 ### Keys
 
@@ -337,7 +337,7 @@ that: progress lines move to stderr, so `prompton … --json | jq` is always
 safe.
 
 ```sh
-prompton use-cases get support_reply --json | jq -r '.deployments[].model'
+prompton prompt get support_reply --json | jq -r '.deployments[].model'
 prompton projects list --json | jq -r '.projects[].slug'
 ```
 
@@ -380,7 +380,7 @@ So a provisioning script runs cleanly the second time:
 ```sh
 set -e
 prompton projects create helpdesk --idempotent --json > project.json
-prompton use-cases create support_reply --idempotent --json > uc.json
+prompton prompt create support_reply --idempotent --json > prompt.json
 ```
 
 ### Quiet output

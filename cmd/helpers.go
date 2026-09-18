@@ -70,41 +70,43 @@ func readInput(path string, stdin io.Reader) ([]byte, error) {
 	return raw, nil
 }
 
-// resolveSingleVersion maps a version number to the prompt version UUID a deployment
-// needs. The use-case payload carries recent versions for compatibility under a
-// single default prompt.
-func resolveSingleVersion(value string, prompts []api.Prompt) (string, error) {
-	prompt := singlePrompt(prompts)
-	if prompt == nil {
-		return "", usagef("this use case has no committed prompt version to deploy")
-	}
-	if len(prompt.Versions) == 0 {
-		return "", usagef("this use case has no committed prompt version to deploy — commit one first")
+// resolveSingleVersion maps a version number to the prompt version UUID a
+// deployment needs. The prompt payload carries the most recent versions.
+func resolveSingleVersion(value string, prompt *api.Prompt) (string, error) {
+	versions := promptVersions(prompt)
+	if len(versions) == 0 {
+		return "", usagef("this prompt has no committed prompt version to deploy")
 	}
 
 	number, err := strconv.Atoi(value)
 	if err != nil {
 		return "", usagef("--version must be a version number, \"latest\", or a version UUID")
 	}
-	for _, v := range prompt.Versions {
+	for _, v := range versions {
 		if v.Number == number {
 			return v.ID, nil
 		}
 	}
-	// GET /use-cases/:key carries only the most recent versions, so an older
+	// GET /prompts/:key carries only the most recent versions, so an older
 	// number needs its UUID spelled out.
-	return "", usagef("this use case has no version %d in the %d most recent versions — deploy it by version UUID instead",
-		number, len(prompt.Versions))
+	return "", usagef("this prompt has no version %d in the %d most recent versions — deploy it by version UUID instead",
+		number, len(versions))
 }
 
-func singlePrompt(prompts []api.Prompt) *api.Prompt {
-	for i := range prompts {
-		if prompts[i].Name == "default" {
-			return &prompts[i]
+func promptVersions(prompt *api.Prompt) []api.VersionSummary {
+	if prompt == nil {
+		return nil
+	}
+	if len(prompt.Versions) > 0 {
+		return prompt.Versions
+	}
+	for _, tmpl := range prompt.PromptTemplates {
+		if tmpl.Name == "default" {
+			return tmpl.Versions
 		}
 	}
-	if len(prompts) == 1 {
-		return &prompts[0]
+	if len(prompt.PromptTemplates) == 1 {
+		return prompt.PromptTemplates[0].Versions
 	}
 	return nil
 }

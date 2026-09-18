@@ -351,22 +351,22 @@ func TestCreateProjectOmitsUnsetOptionalFields(t *testing.T) {
 	}
 }
 
-// ---- use cases ------------------------------------------------------------
+// ---- prompts ------------------------------------------------------------
 
-const useCaseJSON = `{"id":"0192u","key":"support_reply","name":"Support reply",
+const promptJSON = `{"id":"0192u","key":"support_reply","name":"Support reply",
   "description":null,"kind":"chat",
   "input_schema":[{"name":"question","type":"string","required":true,"description":null,"example":null}],
   "default_params":{"temperature":0.5},"tags":[],"created_at":"2026-09-01T10:05:00Z"}`
 
-func TestListUseCases(t *testing.T) {
-	s := newStub(t, 200, `{"use_cases":[`+useCaseJSON+`]}`)
-	got, err := s.client("tok").ListUseCases(ctx(), "personal", "helpdesk")
+func TestListPrompts(t *testing.T) {
+	s := newStub(t, 200, `{"prompts":[`+promptJSON+`]}`)
+	got, err := s.client("tok").ListPrompts(ctx(), "personal", "helpdesk")
 	if err != nil {
-		t.Fatalf("ListUseCases: %v", err)
+		t.Fatalf("ListPrompts: %v", err)
 	}
-	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/use-cases")
+	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/prompts")
 	if len(got) != 1 || got[0].Key != "support_reply" {
-		t.Fatalf("ListUseCases = %+v", got)
+		t.Fatalf("ListPrompts = %+v", got)
 	}
 	if got[0].Description != nil {
 		t.Error("a null description must decode as nil, not as an empty string")
@@ -379,42 +379,38 @@ func TestListUseCases(t *testing.T) {
 	}
 }
 
-func TestGetUseCaseCarriesPromptsAndDeployments(t *testing.T) {
+func TestGetPromptCarriesVersionsAndDeployments(t *testing.T) {
 	s := newStub(t, 200, `{"id":"0192u","key":"support_reply","name":"Support reply",
 	  "kind":"chat","input_schema":[],"default_params":{},"tags":[],"created_at":"2026-09-01T10:05:00Z",
 	  "description":null,
-	  "prompts":[
-	    {"id":"p1","name":"default","description":null,"created_at":"2026-09-01T10:06:00Z",
-	     "version_count":2,
-	     "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":["question"],"created_at":"2026-09-02T…"},
-	                 {"id":"v1","number":1,"message":"migrated from the app","detected_variables":["question"],"created_at":"2026-09-01T…"}]}
-	  ],
+	  "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":["question"],"created_at":"2026-09-02T…"},
+	              {"id":"v1","number":1,"message":"migrated from the app","detected_variables":["question"],"created_at":"2026-09-01T…"}],
 	  "deployments":[
 	    {"id":"d1","revision":3,"environment":"production","model_id":"m-uuid",
 	     "model":"openai/gpt-4o-mini","params":{"temperature":0.4},
 	     "provider_options":{"only":["OpenAI"]},
-	     "prompt_pins":{"default":"v2"},"created_at":"2026-09-02T…"}
+	     "template_pins":{"default":"v2"},"created_at":"2026-09-02T…"}
 	  ]}`)
 
-	got, err := s.client("tok").GetUseCase(ctx(), "personal", "helpdesk", "support_reply")
+	got, err := s.client("tok").GetPrompt(ctx(), "personal", "helpdesk", "support_reply")
 	if err != nil {
-		t.Fatalf("GetUseCase: %v", err)
+		t.Fatalf("GetPrompt: %v", err)
 	}
-	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply")
-	if len(got.Prompts) != 1 {
-		t.Fatalf("prompts = %d, want 1", len(got.Prompts))
+	s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply")
+	if len(got.Versions) != 2 {
+		t.Fatalf("versions = %d, want 2", len(got.Versions))
 	}
-	if got.Prompts[0].VersionCount != 2 || got.Prompts[0].Versions[0].Number != 2 {
-		t.Errorf("prompt = %+v", got.Prompts[0])
+	if got.Versions[0].Number != 2 {
+		t.Errorf("versions = %+v", got.Versions)
 	}
-	if len(got.Deployments) != 1 || got.Deployments[0].PromptPins["default"] != "v2" {
+	if len(got.Deployments) != 1 || got.Deployments[0].TemplatePins["default"] != "v2" {
 		t.Errorf("deployments = %+v", got.Deployments)
 	}
 }
 
-func TestCreateUseCase(t *testing.T) {
-	s := newStub(t, 201, useCaseJSON)
-	_, err := s.client("tok").CreateUseCase(ctx(), "personal", "helpdesk", api.CreateUseCaseRequest{
+func TestCreatePrompt(t *testing.T) {
+	s := newStub(t, 201, promptJSON)
+	_, err := s.client("tok").CreatePrompt(ctx(), "personal", "helpdesk", api.CreatePromptRequest{
 		Key:  "support_reply",
 		Kind: "chat",
 		Name: "Support reply",
@@ -424,9 +420,9 @@ func TestCreateUseCase(t *testing.T) {
 		DefaultParams: map[string]any{"temperature": 0.5},
 	})
 	if err != nil {
-		t.Fatalf("CreateUseCase: %v", err)
+		t.Fatalf("CreatePrompt: %v", err)
 	}
-	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/use-cases")
+	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/prompts")
 	body := c.bodyMap(t)
 	if body["key"] != "support_reply" || body["kind"] != "chat" {
 		t.Errorf("request body = %v", body)
@@ -441,28 +437,28 @@ func TestCreateUseCase(t *testing.T) {
 	}
 }
 
-func TestUpdateUseCaseSendsOnlyTheFieldsGiven(t *testing.T) {
-	s := newStub(t, 200, useCaseJSON)
+func TestUpdatePromptSendsOnlyTheFieldsGiven(t *testing.T) {
+	s := newStub(t, 200, promptJSON)
 	name := "Renamed"
-	_, err := s.client("tok").UpdateUseCase(ctx(), "personal", "helpdesk", "support_reply",
-		api.UpdateUseCaseRequest{Name: &name})
+	_, err := s.client("tok").UpdatePrompt(ctx(), "personal", "helpdesk", "support_reply",
+		api.UpdatePromptRequest{Name: &name})
 	if err != nil {
-		t.Fatalf("UpdateUseCase: %v", err)
+		t.Fatalf("UpdatePrompt: %v", err)
 	}
-	c := s.expect(http.MethodPatch, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply")
+	c := s.expect(http.MethodPatch, "/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply")
 	body := c.bodyMap(t)
 	if len(body) != 1 || body["name"] != "Renamed" {
 		t.Errorf("a PATCH must carry only the changed fields, got %v", body)
 	}
 }
 
-func TestUpdateUseCaseCanClearAField(t *testing.T) {
-	s := newStub(t, 200, useCaseJSON)
+func TestUpdatePromptCanClearAField(t *testing.T) {
+	s := newStub(t, 200, promptJSON)
 	empty := []string{}
-	_, err := s.client("tok").UpdateUseCase(ctx(), "personal", "helpdesk", "k",
-		api.UpdateUseCaseRequest{Tags: &empty})
+	_, err := s.client("tok").UpdatePrompt(ctx(), "personal", "helpdesk", "k",
+		api.UpdatePromptRequest{Tags: &empty})
 	if err != nil {
-		t.Fatalf("UpdateUseCase: %v", err)
+		t.Fatalf("UpdatePrompt: %v", err)
 	}
 	body := s.only().bodyMap(t)
 	tags, ok := body["tags"].([]any)
@@ -471,12 +467,12 @@ func TestUpdateUseCaseCanClearAField(t *testing.T) {
 	}
 }
 
-func TestUpdateUseCaseEmpty(t *testing.T) {
-	if !(api.UpdateUseCaseRequest{}).Empty() {
+func TestUpdatePromptEmpty(t *testing.T) {
+	if !(api.UpdatePromptRequest{}).Empty() {
 		t.Error("a request with no fields must report Empty")
 	}
 	name := "x"
-	if (api.UpdateUseCaseRequest{Name: &name}).Empty() {
+	if (api.UpdatePromptRequest{Name: &name}).Empty() {
 		t.Error("a request with a name must not report Empty")
 	}
 }
@@ -484,7 +480,7 @@ func TestUpdateUseCaseEmpty(t *testing.T) {
 // ---- prompts --------------------------------------------------------------
 
 func TestCommitVersionChat(t *testing.T) {
-	s := newStub(t, 201, `{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid",
+	s := newStub(t, 201, `{"id":"v1","prompt_template_id":"p1","number":1,"engine":"liquid",
 	  "messages":[{"role":"system","content":"You are a friendly support agent for Acme. Answer in two or three sentences; if you are not sure, say so and offer to escalate."},
 	              {"role":"user","content":"{{ t }}"}],
 	  "text_template":null,"detected_variables":["question"],
@@ -500,7 +496,7 @@ func TestCommitVersionChat(t *testing.T) {
 		t.Fatalf("CommitVersion: %v", err)
 	}
 	c := s.expect(http.MethodPost,
-		"/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/prompt/versions")
+		"/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/versions")
 	body := c.bodyMap(t)
 	if _, ok := body["text_template"]; ok {
 		t.Errorf("a chat commit must not send text_template, body = %v", body)
@@ -565,7 +561,7 @@ func TestRegisterModelSendsOnlyModelIDWhenNothingElseIsGiven(t *testing.T) {
 const deploymentJSON = `{"id":"0192d","revision":3,"environment":"production",
   "model_id":"0192m","model":"openai/gpt-4o-mini","params":{"temperature":0.4},
   "provider_options":{"allow_fallbacks":false},
-  "prompt_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}`
+  "template_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}`
 
 func TestListDeploymentsLive(t *testing.T) {
 	s := newStub(t, 200, `{"deployments":[`+deploymentJSON+`]}`)
@@ -573,11 +569,11 @@ func TestListDeploymentsLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListDeployments: %v", err)
 	}
-	c := s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments")
+	c := s.expect(http.MethodGet, "/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments")
 	if c.Query != "" {
 		t.Errorf("without --environment there must be no query string, got %q", c.Query)
 	}
-	if len(got) != 1 || got[0].Revision != 3 || got[0].PromptPins["default"] != "v2" {
+	if len(got) != 1 || got[0].Revision != 3 || got[0].TemplatePins["default"] != "v2" {
 		t.Errorf("deployments = %+v", got)
 	}
 }
@@ -604,7 +600,7 @@ func TestCreateDeploymentWithCatalogUUID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateDeployment: %v", err)
 	}
-	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments")
+	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments")
 	body := c.bodyMap(t)
 	if body["model_id"] != "0192m" {
 		t.Errorf("request body = %v", body)
@@ -625,7 +621,7 @@ func TestCreateDeploymentWithProviderString(t *testing.T) {
 	if body["model"] != "openai/gpt-4o-mini" {
 		t.Errorf("request body = %v", body)
 	}
-	if _, ok := body["prompt_pins"]; ok {
+	if _, ok := body["template_pins"]; ok {
 		t.Errorf("omitted pins must stay omitted so the server pins the newest versions, body = %v", body)
 	}
 }
@@ -633,7 +629,7 @@ func TestCreateDeploymentWithProviderString(t *testing.T) {
 func TestRollback(t *testing.T) {
 	s := newStub(t, 200, `{"id":"0192d","revision":4,"environment":"production","model_id":"0192m",
 	  "model":"openai/gpt-4o-mini","params":{},"provider_options":{},
-	  "prompt_pins":{"default":"v1"},"created_at":"2026-09-02T12:00:00Z"}`)
+	  "template_pins":{"default":"v1"},"created_at":"2026-09-02T12:00:00Z"}`)
 
 	got, err := s.client("tok").Rollback(ctx(), "personal", "helpdesk", "support_reply",
 		api.RollbackRequest{Environment: "production", Revision: 1})
@@ -641,7 +637,7 @@ func TestRollback(t *testing.T) {
 		t.Fatalf("Rollback: %v", err)
 	}
 	c := s.expect(http.MethodPost,
-		"/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments/rollback")
+		"/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments/rollback")
 	body := c.bodyMap(t)
 	if body["revision"] != float64(1) {
 		t.Errorf("request body = %v", body)

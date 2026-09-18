@@ -37,7 +37,7 @@ func newAPIKeysIssueCommand(g *globals) *cobra.Command {
 		Use:   "issue",
 		Short: "Issue a runtime key for the app",
 		Long: `Issue the key the application puts in its environment. It is scoped to this
-project and to deployed use-case reads (read) and monitoring logs (logs) only.
+project and to deployed prompt reads (read) and monitoring logs (logs) only.
 
 The secret is printed once, here, and never again — the server keeps a hash.
 Keys are not tied to an environment: one key reads production and staging, and

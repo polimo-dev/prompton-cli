@@ -49,7 +49,7 @@ func TestUnknownFlagIsAUsageError(t *testing.T) {
 func TestWrongArgumentCountIsAUsageError(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	got := h.run("use-cases", "get")
+	got := h.run("prompt", "get")
 	if got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
@@ -73,7 +73,7 @@ func TestMissingOrgIsAUsageError(t *testing.T) {
 func TestMissingProjectIsAUsageError(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal"})
-	got := h.run("use-cases", "list")
+	got := h.run("prompt", "list")
 	if got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
@@ -601,14 +601,14 @@ func TestConflictWithIdempotentAndJSONPrintsTheResource(t *testing.T) {
 	}
 }
 
-func TestConflictOnUseCaseIsAlsoHandled(t *testing.T) {
+func TestConflictOnPromptIsAlsoHandled(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases", 409,
-		conflictBody("use_case", `{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat",
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts", 409,
+		conflictBody("prompt", `{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat",
 		  "description":null,"input_schema":[],"default_params":{},"tags":[],"created_at":""}`))
 
-	got := h.run("use-cases", "create", "support_reply", "--idempotent")
+	got := h.run("prompt", "create", "support_reply", "--idempotent")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -617,12 +617,12 @@ func TestConflictOnUseCaseIsAlsoHandled(t *testing.T) {
 	}
 }
 
-// ---- use cases ------------------------------------------------------------
+// ---- prompts ------------------------------------------------------------
 
-func TestUseCasesCreateSendsSchemaAndParams(t *testing.T) {
+func TestPromptCreateSendsSchemaAndParams(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases", 201,
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts", 201,
 		`{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat",
 		  "description":null,"input_schema":[],"default_params":{},"tags":[],"created_at":""}`)
 
@@ -631,7 +631,7 @@ func TestUseCasesCreateSendsSchemaAndParams(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := h.run("use-cases", "create", "support_reply",
+	got := h.run("prompt", "create", "support_reply",
 		"--kind", "chat",
 		"--input-schema-file", schema,
 		"--default-params", `{"temperature":0.5}`,
@@ -658,11 +658,11 @@ func TestUseCasesCreateSendsSchemaAndParams(t *testing.T) {
 	}
 }
 
-func TestUseCasesCreateRejectsAnUnknownKind(t *testing.T) {
+func TestPromptCreateRejectsAnUnknownKind(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 
-	got := h.run("use-cases", "create", "x", "--kind", "vision")
+	got := h.run("prompt", "create", "x", "--kind", "vision")
 	if got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
@@ -671,13 +671,13 @@ func TestUseCasesCreateRejectsAnUnknownKind(t *testing.T) {
 	}
 }
 
-func TestUseCasesCreateRejectsOldKinds(t *testing.T) {
+func TestPromptCreateRejectsOldKinds(t *testing.T) {
 	for _, kind := range []string{"text", "embedding"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newHarness(t)
 			h.login(config.File{Org: "personal", Project: "helpdesk"})
 
-			got := h.run("use-cases", "create", "x", "--kind", kind)
+			got := h.run("prompt", "create", "x", "--kind", kind)
 			if got.code != 2 {
 				t.Errorf("exit = %d, want 2", got.code)
 			}
@@ -688,24 +688,24 @@ func TestUseCasesCreateRejectsOldKinds(t *testing.T) {
 	}
 }
 
-func TestUseCasesCreateRejectsBadJSONParams(t *testing.T) {
+func TestPromptCreateRejectsBadJSONParams(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 
-	got := h.run("use-cases", "create", "x", "--default-params", "{oops}")
+	got := h.run("prompt", "create", "x", "--default-params", "{oops}")
 	if got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
 }
 
-func TestUseCasesUpdateSendsOnlyWhatChanged(t *testing.T) {
+func TestPromptUpdateSendsOnlyWhatChanged(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply", 200,
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply", 200,
 		`{"id":"u1","key":"support_reply","name":"Renamed","kind":"chat","description":null,
 		  "input_schema":[],"default_params":{},"tags":[],"created_at":""}`)
 
-	got := h.run("use-cases", "update", "support_reply", "--name", "Renamed")
+	got := h.run("prompt", "update", "support_reply", "--name", "Renamed")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -718,32 +718,31 @@ func TestUseCasesUpdateSendsOnlyWhatChanged(t *testing.T) {
 	}
 }
 
-func TestUseCasesUpdateWithNoFlagsIsAUsageError(t *testing.T) {
+func TestPromptUpdateWithNoFlagsIsAUsageError(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	if got := h.run("use-cases", "update", "support_reply"); got.code != 2 {
+	if got := h.run("prompt", "update", "support_reply"); got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
 }
 
-func TestUseCasesGetShowsPromptsAndDeployments(t *testing.T) {
+func TestPromptGetShowsPromptsAndDeployments(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply", 200,
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply", 200,
 		`{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat","description":null,
 		  "input_schema":[{"name":"question","type":"string","required":true,"description":null}],
 		  "default_params":{"temperature":0.5},"tags":[],"created_at":"2026-09-01T10:00:00Z",
-		  "prompts":[{"id":"p1","name":"default","description":null,"created_at":"","version_count":2,
-		    "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":[],"created_at":""}]}],
+		  "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":[],"created_at":""}],
 		  "deployments":[{"id":"d1","revision":3,"environment":"production","model_id":"m1",
 		    "model":"openai/gpt-4o-mini","params":{"temperature":0.4},"provider_options":{},
-		    "prompt_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}]}`)
+		    "template_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}]}`)
 
-	got := h.run("use-cases", "get", "support_reply")
+	got := h.run("prompt", "get", "support_reply")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	for _, want := range []string{"support_reply", "question", "default", "production", "openai/gpt-4o-mini"} {
+	for _, want := range []string{"support_reply", "question", "v2", "production", "openai/gpt-4o-mini"} {
 		if !strings.Contains(got.stdout, want) {
 			t.Errorf("stdout is missing %q:\n%s", want, got.stdout)
 		}
@@ -761,17 +760,17 @@ func writeTemp(t *testing.T, name, content string) string {
 	return path
 }
 
-func TestPromptsCommitDetectsChatMessages(t *testing.T) {
+func TestPromptCommitDetectsChatMessages(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/prompt/versions", 201,
-		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid","messages":[],"text_template":null,
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/versions", 201,
+		`{"id":"v1","prompt_template_id":"p1","number":1,"engine":"liquid","messages":[],"text_template":null,
 		  "detected_variables":["question"],"message":"migrated","content_sha256":"x","created_at":""}`)
 
 	file := writeTemp(t, "messages.json",
 		`[{"role":"system","content":"You are a friendly support agent for Acme. Answer in two or three sentences; if you are not sure, say so and offer to escalate."},{"role":"user","content":"{{ t }}"}]`)
 
-	got := h.run("prompts", "commit", "support_reply", "--file", file, "--message", "migrated")
+	got := h.run("prompt", "commit", "support_reply", "--file", file, "--message", "migrated")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -791,17 +790,17 @@ func TestPromptsCommitDetectsChatMessages(t *testing.T) {
 	}
 }
 
-func TestPromptsCommitWrapsPlainTextAsAUserMessage(t *testing.T) {
+func TestPromptCommitWrapsPlainTextAsAUserMessage(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/keywords/prompt/versions", 201,
-		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid",
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/keywords/versions", 201,
+		`{"id":"v1","prompt_template_id":"p1","number":1,"engine":"liquid",
 		  "messages":[{"role":"user","content":"billing, refund, invoice"}],
 		  "text_template":null,"detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
 
 	file := writeTemp(t, "template.txt", "billing, refund, invoice")
 
-	got := h.run("prompts", "commit", "keywords", "--file", file)
+	got := h.run("prompt", "commit", "keywords", "--file", file)
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -819,17 +818,17 @@ func TestPromptsCommitWrapsPlainTextAsAUserMessage(t *testing.T) {
 	}
 }
 
-func TestPromptsCommitWrapsLiquidAsAUserMessage(t *testing.T) {
+func TestPromptCommitWrapsLiquidAsAUserMessage(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/kw/prompt/versions", 201,
-		`{"id":"v1","prompt_id":"p1","number":1,"engine":"liquid",
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/kw/versions", 201,
+		`{"id":"v1","prompt_template_id":"p1","number":1,"engine":"liquid",
 		  "messages":[{"role":"user","content":"x"}],
 		  "text_template":null,"detected_variables":[],"message":null,"content_sha256":"x","created_at":""}`)
 
 	file := writeTemp(t, "template.txt", "{% for t in question %}{{ t }}\n{% endfor %}")
 
-	got := h.run("prompts", "commit", "kw", "--file", file)
+	got := h.run("prompt", "commit", "kw", "--file", file)
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
@@ -841,12 +840,12 @@ func TestPromptsCommitWrapsLiquidAsAUserMessage(t *testing.T) {
 	}
 }
 
-func TestPromptsCommitRejectsTextFormat(t *testing.T) {
+func TestPromptCommitRejectsTextFormat(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	file := writeTemp(t, "odd.txt", `[{"role":"system","content":"hi"}]`)
 
-	got := h.run("prompts", "commit", "kw", "--file", file, "--format", "text", "--engine", "raw")
+	got := h.run("prompt", "commit", "kw", "--file", file, "--format", "text", "--engine", "raw")
 	if got.code != 2 {
 		t.Fatalf("exit = %d, want 2: %s", got.code, got.stderr)
 	}
@@ -855,18 +854,18 @@ func TestPromptsCommitRejectsTextFormat(t *testing.T) {
 	}
 }
 
-func TestPromptsCommitWithoutAFileIsAUsageError(t *testing.T) {
+func TestPromptCommitWithoutAFileIsAUsageError(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	if got := h.run("prompts", "commit", "uc"); got.code != 2 {
+	if got := h.run("prompt", "commit", "uc"); got.code != 2 {
 		t.Errorf("exit = %d, want 2", got.code)
 	}
 }
 
-func TestPromptsCommitMissingFileFails(t *testing.T) {
+func TestPromptCommitMissingFileFails(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	got := h.run("prompts", "commit", "uc", "--file", "/nope/absent.json")
+	got := h.run("prompt", "commit", "uc", "--file", "/nope/absent.json")
 	if got.code != 1 {
 		t.Errorf("exit = %d, want 1", got.code)
 	}
@@ -918,12 +917,12 @@ func TestModelsListJSON(t *testing.T) {
 
 const deployReply = `{"id":"d1","revision":4,"environment":"production","model_id":"11111111-1111-4111-8111-111111111111",
   "model":"openai/gpt-4o-mini","params":{"temperature":0.4},"provider_options":{},
-  "prompt_pins":{"default":"22222222-2222-4222-8222-222222222222"},"created_at":"2026-09-02T12:00:00Z"}`
+  "template_pins":{"default":"22222222-2222-4222-8222-222222222222"},"created_at":"2026-09-02T12:00:00Z"}`
 
 func TestDeployWithAProviderStringSendsModel(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply",
 		"--environment", "production",
@@ -947,7 +946,7 @@ func TestDeployWithAProviderStringSendsModel(t *testing.T) {
 func TestDeployWithACatalogUUIDSendsModelID(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply", "--model", "11111111-1111-4111-8111-111111111111")
 	if got.code != 0 {
@@ -965,13 +964,12 @@ func TestDeployWithACatalogUUIDSendsModelID(t *testing.T) {
 func TestDeployResolvesVersionNumbersToUUID(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply", 200,
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply", 200,
 		`{"id":"u1","key":"support_reply","name":"d","kind":"chat","description":null,
 		  "input_schema":[],"default_params":{},"tags":[],"created_at":"",
-		  "prompts":[{"id":"p1","name":"default","description":null,"created_at":"","version_count":2,
-		    "versions":[{"id":"v-two","number":2,"message":null,"detected_variables":[],"created_at":""},
-		                {"id":"v-one","number":1,"message":null,"detected_variables":[],"created_at":""}]}]}`)
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
+		  "versions":[{"id":"v-two","number":2,"message":null,"detected_variables":[],"created_at":""},
+		              {"id":"v-one","number":1,"message":null,"detected_variables":[],"created_at":""}]}`)
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply",
 		"--model", "openai/gpt-4o-mini",
@@ -982,15 +980,15 @@ func TestDeployResolvesVersionNumbersToUUID(t *testing.T) {
 	if got := h.lastBody()["prompt_version_id"]; got != "v-one" {
 		t.Errorf("prompt_version_id = %v, want version 1 resolved to its UUID", got)
 	}
-	if _, ok := h.lastBody()["prompt_pins"]; ok {
-		t.Errorf("deploy must not send legacy prompt_pins: %v", h.lastBody())
+	if _, ok := h.lastBody()["template_pins"]; ok {
+		t.Errorf("deploy must not send legacy template_pins: %v", h.lastBody())
 	}
 }
 
 func TestDeployWithUUIDVersionSkipsTheLookup(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply",
 		"--model", "openai/gpt-4o-mini",
@@ -999,7 +997,7 @@ func TestDeployWithUUIDVersionSkipsTheLookup(t *testing.T) {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	if len(h.requests) != 1 {
-		t.Errorf("requests = %v, want no use-case fetch when version is already a UUID", h.paths())
+		t.Errorf("requests = %v, want no prompt fetch when version is already a UUID", h.paths())
 	}
 	if got := h.lastBody()["prompt_version_id"]; got != "22222222-2222-4222-8222-222222222222" {
 		t.Errorf("prompt_version_id = %v", got)
@@ -1009,7 +1007,7 @@ func TestDeployWithUUIDVersionSkipsTheLookup(t *testing.T) {
 func TestDeployLatestVersionLeavesSelectionToServer(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply",
 		"--model", "openai/gpt-4o-mini",
@@ -1018,7 +1016,7 @@ func TestDeployLatestVersionLeavesSelectionToServer(t *testing.T) {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	if len(h.requests) != 1 {
-		t.Errorf("requests = %v, want no use-case fetch for latest", h.paths())
+		t.Errorf("requests = %v, want no prompt fetch for latest", h.paths())
 	}
 	if _, ok := h.lastBody()["prompt_version_id"]; ok {
 		t.Errorf("latest is represented by omission, body = %v", h.lastBody())
@@ -1028,11 +1026,10 @@ func TestDeployLatestVersionLeavesSelectionToServer(t *testing.T) {
 func TestDeployRejectsAMalformedVersion(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply", 200,
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply", 200,
 		`{"id":"u1","key":"support_reply","name":"d","kind":"chat","description":null,
 		  "input_schema":[],"default_params":{},"tags":[],"created_at":"",
-		  "prompts":[{"id":"p1","name":"default","description":null,"created_at":"","version_count":1,
-		    "versions":[{"id":"v1","number":1,"message":null,"detected_variables":[],"created_at":""}]}]}`)
+		  "versions":[{"id":"v1","number":1,"message":null,"detected_variables":[],"created_at":""}]}`)
 
 	got := h.run("deploy", "support_reply", "--model", "m", "--version", "default")
 	if got.code != 2 {
@@ -1058,7 +1055,7 @@ func TestDeployWithoutAModelIsAUsageError(t *testing.T) {
 func TestDeployJSON(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 201, deployReply)
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply", "--model", "openai/gpt-4o-mini", "--json")
 	if got.code != 0 {
@@ -1075,7 +1072,7 @@ func TestDeployJSON(t *testing.T) {
 func TestDeploymentsListLive(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 200,
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 200,
 		`{"deployments":[`+deployReply+`]}`)
 
 	got := h.run("deployments", "list", "support_reply")
@@ -1093,7 +1090,7 @@ func TestDeploymentsListLive(t *testing.T) {
 func TestDeploymentsListHistory(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments", 200,
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 200,
 		`{"deployments":[]}`)
 
 	got := h.run("deployments", "list", "support_reply", "--environment", "staging")
@@ -1108,7 +1105,7 @@ func TestDeploymentsListHistory(t *testing.T) {
 func TestRollback(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments/rollback", 200, deployReply)
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments/rollback", 200, deployReply)
 
 	got := h.run("rollback", "support_reply", "--environment", "production", "--revision", "2")
 	if got.code != 0 {
@@ -1134,7 +1131,7 @@ func TestRollbackWithoutRevisionIsAUsageError(t *testing.T) {
 func TestRollbackSurfacesAvailableRevisions(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/use-cases/support_reply/deployments/rollback", 404,
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments/rollback", 404,
 		`{"error":{"code":"not_found","message":"no such revision","details":{"available_revisions":[1,2,3]}}}`)
 
 	got := h.run("rollback", "support_reply", "--revision", "9")

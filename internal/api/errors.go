@@ -63,7 +63,7 @@ func AsError(err error) (*Error, bool) {
 }
 
 // Conflict returns the existing resource carried by a 409. The server puts it
-// under a single descriptive key ("project", "use_case", "model", …), so the
+// under a single descriptive key ("project", "prompt", "model", …), so the
 // name is returned alongside the JSON for callers that want to print it.
 func (e *Error) Conflict() (name string, raw json.RawMessage, ok bool) {
 	if e.Code != CodeConflict || len(e.Details) == 0 {

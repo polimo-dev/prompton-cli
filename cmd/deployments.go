@@ -21,11 +21,11 @@ func newDeployCommand(g *globals) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "deploy <use-case>",
+		Use:   "deploy <prompt>",
 		Short: "Commit a deployment revision",
 		Long: `Commit a new revision: one model, its params, and one pinned prompt version.
 A revision is a pin, not a router — the moment it is committed it is the live
-configuration for that (use case, environment).
+configuration for that (prompt, environment).
 
 --model takes either a catalog UUID or a provider string like
 "openai/gpt-4o-mini"; a provider string that is not in the catalog yet is
@@ -38,7 +38,7 @@ Promoting is the same command against another environment with the same version.
 		Example: "  " + meta.Name + " deploy support_reply --environment production \\\n" +
 			"      --model openai/gpt-4o-mini --params '{\"temperature\":0.3}' \\\n" +
 			"      --version 1",
-		Args: exactArgs(1, "<use-case>"),
+		Args: exactArgs(1, "<prompt>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(model) == "" {
 				return usagef("--model is required: a catalog UUID or a provider model string")
@@ -51,7 +51,7 @@ Promoting is the same command against another environment with the same version.
 			if err != nil {
 				return err
 			}
-			useCase := args[0]
+			prompt := args[0]
 
 			paramsMap, err := parseJSONObject("params", params)
 			if err != nil {
@@ -67,11 +67,11 @@ Promoting is the same command against another environment with the same version.
 				if isUUID(version) {
 					promptVersionID = version
 				} else {
-					uc, err := client.GetUseCase(cmd.Context(), org, project, useCase)
+					promptRecord, err := client.GetPrompt(cmd.Context(), org, project, prompt)
 					if err != nil {
 						return err
 					}
-					promptVersionID, err = resolveSingleVersion(version, uc.Prompts)
+					promptVersionID, err = resolveSingleVersion(version, promptRecord)
 					if err != nil {
 						return err
 					}
@@ -90,7 +90,7 @@ Promoting is the same command against another environment with the same version.
 				req.Model = model
 			}
 
-			deployment, err := client.CreateDeployment(cmd.Context(), org, project, useCase, req)
+			deployment, err := client.CreateDeployment(cmd.Context(), org, project, prompt, req)
 			if err != nil {
 				return err
 			}
@@ -100,14 +100,14 @@ Promoting is the same command against another environment with the same version.
 				return p.PrintJSON(deployment)
 			}
 			p.Fields([][2]string{
-				{"Use case", useCase},
+				{"Prompt", prompt},
 				{"Environment", deployment.Environment},
 				{"Revision", fmt.Sprintf("%d", deployment.Revision)},
 				{"Model", deployment.Model},
 				{"Catalog id", deployment.ModelID},
 				{"Params", output.Dash(output.Compact(deployment.Params))},
 				{"Provider options", output.Dash(output.Compact(deployment.ProviderOptions))},
-				{"Pins", output.Dash(output.CompactStrings(deployment.PromptPins))},
+				{"Pins", output.Dash(output.CompactStrings(deployment.TemplatePins))},
 			})
 			return nil
 		},
@@ -115,7 +115,7 @@ Promoting is the same command against another environment with the same version.
 
 	cmd.Flags().StringVar(&environment, "environment", "", "environment slug (server default: production)")
 	cmd.Flags().StringVar(&model, "model", "", "catalog UUID or provider model string")
-	cmd.Flags().StringVar(&params, "params", "", "JSON object of model params, layered over the use case defaults")
+	cmd.Flags().StringVar(&params, "params", "", "JSON object of model params, layered over the prompt defaults")
 	cmd.Flags().StringVar(&providerOptions, "provider-options", "", "JSON object of provider options, layered over the model's")
 	cmd.Flags().StringVar(&version, "version", "", "prompt version to deploy: number, \"latest\", or UUID (server default: latest)")
 	return cmd
@@ -132,12 +132,12 @@ func newDeploymentsCommand(g *globals) *cobra.Command {
 
 	var environment string
 	list := &cobra.Command{
-		Use:   "list <use-case>",
+		Use:   "list <prompt>",
 		Short: "Show what is live, or one environment's history",
 		Long: `Without --environment this lists the live revision of every environment: what
 is running right now. With --environment it lists every revision of that
 environment, newest first.`,
-		Args: exactArgs(1, "<use-case>"),
+		Args: exactArgs(1, "<prompt>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := g.client()
 			if err != nil {
@@ -172,13 +172,13 @@ func newRollbackCommand(g *globals) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "rollback <use-case>",
+		Use:   "rollback <prompt>",
 		Short: "Re-commit a past revision",
 		Long: `Roll back by re-committing an earlier revision's pins. History is never
 rewound, so this produces a new, higher revision number carrying the old
 configuration.`,
 		Example: "  " + meta.Name + " rollback support_reply --environment production --revision 2",
-		Args:    exactArgs(1, "<use-case>"),
+		Args:    exactArgs(1, "<prompt>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("revision") {
 				return usagef("--revision is required: the past revision number to restore")
@@ -208,12 +208,12 @@ configuration.`,
 				return p.PrintJSON(deployment)
 			}
 			p.Fields([][2]string{
-				{"Use case", args[0]},
+				{"Prompt", args[0]},
 				{"Environment", deployment.Environment},
 				{"Revision", fmt.Sprintf("%d (restored from %d)", deployment.Revision, revision)},
 				{"Model", deployment.Model},
 				{"Params", output.Dash(output.Compact(deployment.Params))},
-				{"Pins", output.Dash(output.CompactStrings(deployment.PromptPins))},
+				{"Pins", output.Dash(output.CompactStrings(deployment.TemplatePins))},
 			})
 			return nil
 		},
@@ -236,7 +236,7 @@ func deploymentRows(deployments []api.Deployment) [][]string {
 			fmt.Sprintf("%d", d.Revision),
 			d.Model,
 			output.Dash(output.Compact(d.Params)),
-			output.Dash(output.Truncate(output.CompactStrings(d.PromptPins), 46)),
+			output.Dash(output.Truncate(output.CompactStrings(d.TemplatePins), 46)),
 			output.Date(d.CreatedAt),
 		})
 	}

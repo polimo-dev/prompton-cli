@@ -88,9 +88,9 @@ type CreateProjectRequest struct {
 	Timezone    string `json:"timezone,omitempty"`
 }
 
-// ---- use cases ------------------------------------------------------------
+// ---- prompts ------------------------------------------------------------
 
-// InputField is one declared input variable of a use case.
+// InputField is one declared input variable of a prompt.
 type InputField struct {
 	Name        string  `json:"name"`
 	Type        string  `json:"type"`
@@ -99,9 +99,9 @@ type InputField struct {
 	Example     any     `json:"example,omitempty"`
 }
 
-// UseCase is one call site. GET of a single use case also carries its prompts
+// Prompt is one call site. GET of a single prompt also carries recent versions
 // and live deployments.
-type UseCase struct {
+type Prompt struct {
 	ID            string         `json:"id"`
 	Key           string         `json:"key"`
 	Name          string         `json:"name"`
@@ -112,12 +112,13 @@ type UseCase struct {
 	Tags          []string       `json:"tags"`
 	CreatedAt     string         `json:"created_at"`
 
-	Prompts     []Prompt     `json:"prompts,omitempty"`
-	Deployments []Deployment `json:"deployments,omitempty"`
+	Versions        []VersionSummary `json:"versions,omitempty"`
+	PromptTemplates []PromptTemplate `json:"prompt_templates,omitempty"`
+	Deployments     []Deployment     `json:"deployments,omitempty"`
 }
 
-// CreateUseCaseRequest is the body of POST /use-cases.
-type CreateUseCaseRequest struct {
+// CreatePromptRequest is the body of POST /prompts.
+type CreatePromptRequest struct {
 	Key           string         `json:"key"`
 	Name          string         `json:"name,omitempty"`
 	Kind          string         `json:"kind,omitempty"`
@@ -127,10 +128,10 @@ type CreateUseCaseRequest struct {
 	Tags          []string       `json:"tags,omitempty"`
 }
 
-// UpdateUseCaseRequest is the body of PATCH /use-cases/:key. Only the fields
+// UpdatePromptRequest is the body of PATCH /prompts/:key. Only the fields
 // that are present are changed, so every field is a pointer: a nil pointer is
 // "leave it alone", and a pointer to a zero value is "set it to that".
-type UpdateUseCaseRequest struct {
+type UpdatePromptRequest struct {
 	Name          *string         `json:"name,omitempty"`
 	Description   *string         `json:"description,omitempty"`
 	Tags          *[]string       `json:"tags,omitempty"`
@@ -139,12 +140,12 @@ type UpdateUseCaseRequest struct {
 }
 
 // Empty reports whether the patch would change nothing.
-func (r UpdateUseCaseRequest) Empty() bool {
+func (r UpdatePromptRequest) Empty() bool {
 	return r.Name == nil && r.Description == nil && r.Tags == nil &&
 		r.InputSchema == nil && r.DefaultParams == nil
 }
 
-// ---- prompts --------------------------------------------------------------
+// ---- prompt templates -----------------------------------------------------
 
 // VersionSummary is one immutable prompt version as it appears in a listing.
 type VersionSummary struct {
@@ -155,8 +156,9 @@ type VersionSummary struct {
 	CreatedAt         string   `json:"created_at"`
 }
 
-// Prompt is the prompt attached to a use case. Older API payloads expose the compatibility name "default".
-type Prompt struct {
+// PromptTemplate is the internal template storage behind a prompt. It is kept
+// only so the CLI can read compatibility payloads during the migration.
+type PromptTemplate struct {
 	ID           string           `json:"id"`
 	Name         string           `json:"name"`
 	Description  *string          `json:"description"`
@@ -181,7 +183,7 @@ type CommitVersionRequest struct {
 // PromptVersion is the full committed version.
 type PromptVersion struct {
 	ID                string    `json:"id"`
-	PromptID          string    `json:"prompt_id"`
+	PromptTemplateID  string    `json:"prompt_template_id"`
 	Number            int       `json:"number"`
 	Engine            string    `json:"engine"`
 	Messages          []Message `json:"messages"`
@@ -236,7 +238,7 @@ type RegisterModelRequest struct {
 // ---- deployments ----------------------------------------------------------
 
 // Deployment is one immutable revision: a model, its params, and the pinned
-// prompt version. PromptPins is retained for default-only wire compatibility.
+// prompt version. TemplatePins is retained for default-only wire compatibility.
 type Deployment struct {
 	ID              string            `json:"id"`
 	Revision        int               `json:"revision"`
@@ -245,7 +247,7 @@ type Deployment struct {
 	Model           string            `json:"model"`
 	Params          map[string]any    `json:"params"`
 	ProviderOptions map[string]any    `json:"provider_options"`
-	PromptPins      map[string]string `json:"prompt_pins"`
+	TemplatePins    map[string]string `json:"template_pins"`
 	CreatedAt       string            `json:"created_at"`
 }
 
@@ -254,13 +256,12 @@ type Deployment struct {
 // required; when both are sent ModelID wins. PromptVersionID pins a specific
 // prompt version; omitting it asks the server to pin the latest committed one.
 type CreateDeploymentRequest struct {
-	Environment     string            `json:"environment,omitempty"`
-	ModelID         string            `json:"model_id,omitempty"`
-	Model           string            `json:"model,omitempty"`
-	PromptVersionID string            `json:"prompt_version_id,omitempty"`
-	PromptPins      map[string]string `json:"prompt_pins,omitempty"`
-	Params          map[string]any    `json:"params,omitempty"`
-	ProviderOptions map[string]any    `json:"provider_options,omitempty"`
+	Environment     string         `json:"environment,omitempty"`
+	ModelID         string         `json:"model_id,omitempty"`
+	Model           string         `json:"model,omitempty"`
+	PromptVersionID string         `json:"prompt_version_id,omitempty"`
+	Params          map[string]any `json:"params,omitempty"`
+	ProviderOptions map[string]any `json:"provider_options,omitempty"`
 }
 
 // RollbackRequest re-commits a past revision as a new one.
@@ -317,8 +318,8 @@ type orgsEnvelope struct {
 type projectsEnvelope struct {
 	Projects []Project `json:"projects"`
 }
-type useCasesEnvelope struct {
-	UseCases []UseCase `json:"use_cases"`
+type promptsEnvelope struct {
+	Prompts []Prompt `json:"prompts"`
 }
 type modelsEnvelope struct {
 	Models []Model `json:"models"`

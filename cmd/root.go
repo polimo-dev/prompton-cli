@@ -114,7 +114,7 @@ func NewRootCommand(in io.Reader, out, errOut io.Writer) *cobra.Command {
 	root := &cobra.Command{
 		Use:   meta.Name,
 		Short: "Provision and operate PromptOn from the command line",
-		Long: fmt.Sprintf(`%s configures PromptOn: projects, use cases, prompts, models,
+		Long: fmt.Sprintf(`%s configures PromptOn: projects, prompts, models,
 deployments and keys.
 
 It signs in as you — `+"`%s login`"+` opens a browser approval and stores a
@@ -151,8 +151,7 @@ Add --json to any command for machine-readable output.`, meta.Name, meta.Name),
 		newOrgsCommand(g),
 		newUseCommand(g),
 		newProjectsCommand(g),
-		newUseCasesCommand(g),
-		newPromptsCommand(g),
+		newPromptCommand(g),
 		newModelsCommand(g),
 		newDeployCommand(g),
 		newDeploymentsCommand(g),

@@ -12,19 +12,7 @@ import (
 	"github.com/polimo-dev/prompton-cli/internal/output"
 )
 
-func newPromptsCommand(g *globals) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "prompts",
-		Aliases: []string{"prompt"},
-		Short:   "Prompt versions",
-		Args:    noArgs,
-		RunE:    func(c *cobra.Command, _ []string) error { return c.Help() },
-	}
-	cmd.AddCommand(newPromptsCommitCommand(g))
-	return cmd
-}
-
-func newPromptsCommitCommand(g *globals) *cobra.Command {
+func newPromptCommitCommand(g *globals) *cobra.Command {
 	var (
 		file    string
 		engine  string
@@ -33,9 +21,9 @@ func newPromptsCommitCommand(g *globals) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "commit <use-case>",
+		Use:   "commit <prompt>",
 		Short: "Commit a new immutable prompt version",
-		Long: `Commit the contents of a file as the next prompt version for a use case.
+		Long: `Commit the contents of a file as the next prompt version for a prompt.
 
 Versions are immutable and committing alone changes nothing at runtime — a
 version goes live when a deployment revision pins it.
@@ -43,9 +31,9 @@ version goes live when a deployment revision pins it.
 The file is read as chat messages when it holds a JSON array (or an object with
 a "messages" array). Any other non-empty file is committed as one user message.
 Pass "-" as the file to read stdin.`,
-		Example: "  " + meta.Name + " prompts commit support_reply \\\n" +
+		Example: "  " + meta.Name + " prompt commit support_reply \\\n" +
 			"      --file messages.json --message 'migrated from the app'",
-		Args: exactArgs(1, "<use-case>"),
+		Args: exactArgs(1, "<prompt>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if file == "" {
 				return usagef("--file is required (use \"-\" to read stdin)")
@@ -80,7 +68,7 @@ Pass "-" as the file to read stdin.`,
 				return p.PrintJSON(version)
 			}
 			p.Fields([][2]string{
-				{"Use case", args[0]},
+				{"Prompt", args[0]},
 				{"Version", fmt.Sprintf("v%d", version.Number)},
 				{"Engine", version.Engine},
 				{"Variables", output.Dash(output.Join(version.DetectedVariables))},

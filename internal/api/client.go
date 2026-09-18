@@ -210,44 +210,44 @@ func (c *Client) CreateProject(ctx context.Context, org string, req CreateProjec
 	return &out, nil
 }
 
-// ---- use cases ------------------------------------------------------------
+// ---- prompts ------------------------------------------------------------
 
-func useCasesPath(org, project string) string {
-	return "/orgs/" + seg(org) + "/projects/" + seg(project) + "/use-cases"
+func promptsPath(org, project string) string {
+	return "/orgs/" + seg(org) + "/projects/" + seg(project) + "/prompts"
 }
 
-// ListUseCases returns the project's use cases.
-func (c *Client) ListUseCases(ctx context.Context, org, project string) ([]UseCase, error) {
-	var out useCasesEnvelope
-	if err := c.do(ctx, http.MethodGet, useCasesPath(org, project), nil, &out); err != nil {
+// ListPrompts returns the project's prompts.
+func (c *Client) ListPrompts(ctx context.Context, org, project string) ([]Prompt, error) {
+	var out promptsEnvelope
+	if err := c.do(ctx, http.MethodGet, promptsPath(org, project), nil, &out); err != nil {
 		return nil, err
 	}
-	return out.UseCases, nil
+	return out.Prompts, nil
 }
 
-// GetUseCase returns one use case with its prompts and live deployments.
-func (c *Client) GetUseCase(ctx context.Context, org, project, key string) (*UseCase, error) {
-	var out UseCase
-	if err := c.do(ctx, http.MethodGet, useCasesPath(org, project)+"/"+seg(key), nil, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateUseCase creates a use case. A "default" prompt is born with it.
-func (c *Client) CreateUseCase(ctx context.Context, org, project string, req CreateUseCaseRequest) (*UseCase, error) {
-	var out UseCase
-	if err := c.do(ctx, http.MethodPost, useCasesPath(org, project), req, &out); err != nil {
+// GetPrompt returns one prompt with recent versions and live deployments.
+func (c *Client) GetPrompt(ctx context.Context, org, project, key string) (*Prompt, error) {
+	var out Prompt
+	if err := c.do(ctx, http.MethodGet, promptsPath(org, project)+"/"+seg(key), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// UpdateUseCase patches the fields that are present. Key and kind cannot
+// CreatePrompt creates a prompt.
+func (c *Client) CreatePrompt(ctx context.Context, org, project string, req CreatePromptRequest) (*Prompt, error) {
+	var out Prompt
+	if err := c.do(ctx, http.MethodPost, promptsPath(org, project), req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdatePrompt patches the fields that are present. Key and kind cannot
 // change — they are the app's contract.
-func (c *Client) UpdateUseCase(ctx context.Context, org, project, key string, req UpdateUseCaseRequest) (*UseCase, error) {
-	var out UseCase
-	if err := c.do(ctx, http.MethodPatch, useCasesPath(org, project)+"/"+seg(key), req, &out); err != nil {
+func (c *Client) UpdatePrompt(ctx context.Context, org, project, key string, req UpdatePromptRequest) (*Prompt, error) {
+	var out Prompt
+	if err := c.do(ctx, http.MethodPatch, promptsPath(org, project)+"/"+seg(key), req, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -255,10 +255,10 @@ func (c *Client) UpdateUseCase(ctx context.Context, org, project, key string, re
 
 // ---- prompts --------------------------------------------------------------
 
-// CommitVersion commits an immutable prompt version for a use case.
-func (c *Client) CommitVersion(ctx context.Context, org, project, useCase string, req CommitVersionRequest) (*PromptVersion, error) {
+// CommitVersion commits an immutable prompt version for a prompt.
+func (c *Client) CommitVersion(ctx context.Context, org, project, prompt string, req CommitVersionRequest) (*PromptVersion, error) {
 	var out PromptVersion
-	path := useCasesPath(org, project) + "/" + seg(useCase) + "/prompt/versions"
+	path := promptsPath(org, project) + "/" + seg(prompt) + "/versions"
 	if err := c.do(ctx, http.MethodPost, path, req, &out); err != nil {
 		return nil, err
 	}
@@ -291,14 +291,14 @@ func (c *Client) RegisterModel(ctx context.Context, org, project string, req Reg
 
 // ---- deployments ----------------------------------------------------------
 
-func deploymentsPath(org, project, useCase string) string {
-	return useCasesPath(org, project) + "/" + seg(useCase) + "/deployments"
+func deploymentsPath(org, project, prompt string) string {
+	return promptsPath(org, project) + "/" + seg(prompt) + "/deployments"
 }
 
 // ListDeployments returns one live revision per environment. With environment
 // set it returns every revision of that environment instead, newest first.
-func (c *Client) ListDeployments(ctx context.Context, org, project, useCase, environment string) ([]Deployment, error) {
-	path := deploymentsPath(org, project, useCase)
+func (c *Client) ListDeployments(ctx context.Context, org, project, prompt, environment string) ([]Deployment, error) {
+	path := deploymentsPath(org, project, prompt)
 	if environment != "" {
 		path += "?environment=" + url.QueryEscape(environment)
 	}
@@ -310,9 +310,9 @@ func (c *Client) ListDeployments(ctx context.Context, org, project, useCase, env
 }
 
 // CreateDeployment commits a new revision.
-func (c *Client) CreateDeployment(ctx context.Context, org, project, useCase string, req CreateDeploymentRequest) (*Deployment, error) {
+func (c *Client) CreateDeployment(ctx context.Context, org, project, prompt string, req CreateDeploymentRequest) (*Deployment, error) {
 	var out Deployment
-	if err := c.do(ctx, http.MethodPost, deploymentsPath(org, project, useCase), req, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, deploymentsPath(org, project, prompt), req, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -320,9 +320,9 @@ func (c *Client) CreateDeployment(ctx context.Context, org, project, useCase str
 
 // Rollback re-commits a past revision, which produces a new higher-numbered
 // revision rather than rewinding history.
-func (c *Client) Rollback(ctx context.Context, org, project, useCase string, req RollbackRequest) (*Deployment, error) {
+func (c *Client) Rollback(ctx context.Context, org, project, prompt string, req RollbackRequest) (*Deployment, error) {
 	var out Deployment
-	path := deploymentsPath(org, project, useCase) + "/rollback"
+	path := deploymentsPath(org, project, prompt) + "/rollback"
 	if err := c.do(ctx, http.MethodPost, path, req, &out); err != nil {
 		return nil, err
 	}
