@@ -418,7 +418,7 @@ because it holds a token. `$XDG_CONFIG_HOME` is honoured when set.
 
 | Variable | Effect |
 |---|---|
-| `PTN_HOST` | API host, for self-hosted or staging instances |
+| `PTN_HOST` | API host; defaults to `https://app.prompton.ai`, with overrides for development and testing |
 | `PTN_TOKEN` | Session token, for CI where no browser can approve one |
 | `PTN_ORG` | Default organization |
 | `PTN_PROJECT` | Default project |

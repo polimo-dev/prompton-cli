@@ -203,13 +203,13 @@ func TestWriteFileOverwritesWithoutLosingPermissions(t *testing.T) {
 
 func TestClearedKeepsHostOnly(t *testing.T) {
 	got := config.Cleared(config.File{
-		Host:    "https://self.hosted",
+		Host:    "https://app.dev.prompton.ai",
 		Token:   "secret",
 		Org:     "acme",
 		Project: "helpdesk",
 		User:    &config.User{ID: "u1", Email: "ada@example.com"},
 	})
-	if got.Host != "https://self.hosted" {
+	if got.Host != "https://app.dev.prompton.ai" {
 		t.Errorf("Host = %q, want the host to survive logout", got.Host)
 	}
 	if got.Token != "" || got.User != nil || got.Org != "" || got.Project != "" {

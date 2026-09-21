@@ -14,8 +14,8 @@ func newLogoutCommand(g *globals) *cobra.Command {
 		Use:   "logout",
 		Short: "Revoke this CLI session and forget it",
 		Long: `Revoke the stored session token server-side, then clear it from the config
-file. The host is kept, so a later ` + "`login`" + ` against a self-hosted instance
-does not need --host again.`,
+file. The host is kept, so a later ` + "`login`" + ` uses the same API host
+without needing --host again.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := g.config()

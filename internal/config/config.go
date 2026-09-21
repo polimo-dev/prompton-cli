@@ -182,7 +182,7 @@ func WriteFile(path string, f File) error {
 }
 
 // Cleared strips the stored credential and identity but keeps the host, so a
-// later `login` against a self-hosted instance does not need --host again.
+// later `login` uses the same API host without needing --host again.
 func Cleared(f File) File {
 	return File{Host: f.Host}
 }
