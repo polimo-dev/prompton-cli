@@ -293,6 +293,7 @@ Every command accepts the global flags below.
 |---|---|
 | `prompton prompt list` | Every call site in the project |
 | `prompton prompt get <key>` | The prompt with its versions and live deployments |
+| `prompton prompt contract <key> [--candidate-file F] --json` | Read live, draft, and optional proposed response contracts without saving or deploying |
 | `prompton prompt create <key> [--name N] [--description D] [--input-schema-file F] [--default-params JSON] [--tags a,b]` | Creates a chat prompt |
 | `prompton prompt update <key> [--name N] [--description D] [--tags a,b] [--input-schema-file F] [--default-params JSON]` | Changes only the fields given; schema and params are replaced, not merged |
 
@@ -340,6 +341,30 @@ safe.
 prompton prompt get support_reply --json | jq -r '.deployments[].model'
 prompton projects list --json | jq -r '.projects[].slug'
 ```
+
+Before changing a deployed prompt's type or Decision questions, inspect its
+response contracts:
+
+```sh
+prompton prompt contract support_reply --json
+prompton prompt contract support_reply --candidate-file migration-candidate.json --json
+```
+
+The result includes every live environment's pinned content and response contract,
+the effective draft, and response formats for Chat and Decision answers. A
+candidate file is an unapplied preview: `{ "kind": "decision", "engine": "liquid",
+"decision": { "state": "{{input}}", "questions": { "is_bug": { "type": "noul",
+"instructions": "Is this a bug?" } } } }`. Chat candidates use `kind: "chat"` and
+`messages` instead. Use `--candidate-file -` for stdin. Inspection never changes a
+draft, creates a deployment, or calls a provider. It always prints JSON.
+
+Update the app to handle both live and proposed response contracts, test both,
+and finish rolling out every app instance and worker before applying the type
+change or deploying the new prompt. Parse each response with the same request's
+API and pinned questions; an SDK cache may briefly retain the old deployment.
+Keep both paths for rollback. Decision `noul` is a numeric probability, not a
+boolean; question names, types, choice labels, and score rubrics can change the
+application's response interpretation even when the prompt remains Decision.
 
 Failures are JSON too, on stderr, in the same envelope the API uses:
 

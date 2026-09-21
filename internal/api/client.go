@@ -234,6 +234,23 @@ func (c *Client) GetPrompt(ctx context.Context, org, project, key string) (*Prom
 	return &out, nil
 }
 
+// InspectPromptContract reads live and draft contracts. Supplying candidate
+// switches to a read-only POST that also describes the proposed content.
+func (c *Client) InspectPromptContract(ctx context.Context, org, project, key string, candidate json.RawMessage) (PromptContract, error) {
+	path := promptsPath(org, project) + "/" + seg(key) + "/contract"
+	method := http.MethodGet
+	var body any
+	if len(candidate) > 0 {
+		method = http.MethodPost
+		body = InspectPromptContractRequest{Candidate: candidate}
+	}
+	var out PromptContract
+	if err := c.do(ctx, method, path, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CreatePrompt creates a prompt.
 func (c *Client) CreatePrompt(ctx context.Context, org, project string, req CreatePromptRequest) (*Prompt, error) {
 	var out Prompt

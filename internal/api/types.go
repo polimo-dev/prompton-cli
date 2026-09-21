@@ -117,6 +117,16 @@ type Prompt struct {
 	Deployments     []Deployment     `json:"deployments,omitempty"`
 }
 
+// PromptContract preserves the complete inspection document, including dynamic
+// question names and provider response fields. RawMessage retains numeric state
+// values exactly rather than converting them through float64.
+type PromptContract map[string]json.RawMessage
+
+// InspectPromptContractRequest inspects a candidate without persisting it.
+type InspectPromptContractRequest struct {
+	Candidate json.RawMessage `json:"candidate"`
+}
+
 // CreatePromptRequest is the body of POST /prompts.
 type CreatePromptRequest struct {
 	Key           string         `json:"key"`

@@ -25,6 +25,7 @@ func newPromptCommand(g *globals) *cobra.Command {
 	cmd.AddCommand(
 		newPromptListCommand(g),
 		newPromptGetCommand(g),
+		newPromptContractCommand(g),
 		newPromptCreateCommand(g),
 		newPromptUpdateCommand(g),
 		newPromptCommitCommand(g),
