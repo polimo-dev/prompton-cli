@@ -29,7 +29,9 @@ Versions are immutable and committing alone changes nothing at runtime — a
 version goes live when a deployment revision pins it.
 
 The file is read as chat messages when it holds a JSON array (or an object with
-a "messages" array). Any other non-empty file is committed as one user message.
+a "messages" array). An object can also include tools, output and engine.
+Message slots and native tool-call fields are preserved. Any other non-empty
+file is committed as one user message.
 Pass "-" as the file to read stdin.`,
 		Example: "  " + meta.Name + " prompt commit support_reply \\\n" +
 			"      --file messages.json --message 'migrated from the app'",
@@ -55,7 +57,9 @@ Pass "-" as the file to read stdin.`,
 			if err != nil {
 				return err
 			}
-			req.Engine = engine
+			if engine != "" {
+				req.Engine = engine
+			}
 			req.Message = message
 
 			version, err := client.CommitVersion(cmd.Context(), org, project, args[0], req)
@@ -96,10 +100,10 @@ func buildCommit(raw []byte, format, name string) (api.CommitVersionRequest, err
 		if err != nil {
 			return api.CommitVersionRequest{}, usagef("%s: %v", name, err)
 		}
-		return api.CommitVersionRequest{Messages: msgs}, nil
+		return commitWithMetadata(raw, msgs, name)
 	case "auto", "":
 		if msgs, err := decodeMessages(raw); err == nil {
-			return api.CommitVersionRequest{Messages: msgs}, nil
+			return commitWithMetadata(raw, msgs, name)
 		}
 		if strings.TrimSpace(text) == "" {
 			return api.CommitVersionRequest{}, usagef("%s is empty", name)
@@ -108,6 +112,22 @@ func buildCommit(raw []byte, format, name string) (api.CommitVersionRequest, err
 	default:
 		return api.CommitVersionRequest{}, usagef("--format must be auto or messages")
 	}
+}
+
+func commitWithMetadata(raw []byte, messages []api.Message, name string) (api.CommitVersionRequest, error) {
+	req := api.CommitVersionRequest{Messages: messages}
+	if strings.HasPrefix(strings.TrimSpace(string(raw)), "{") {
+		if err := json.Unmarshal(raw, &req); err != nil {
+			return api.CommitVersionRequest{}, usagef("%s: %v", name, err)
+		}
+		if len(req.Tools) > 0 && string(req.Tools) != "null" {
+			var tools map[string]json.RawMessage
+			if err := json.Unmarshal(req.Tools, &tools); err != nil || tools == nil {
+				return api.CommitVersionRequest{}, usagef("%s: tools must be an object", name)
+			}
+		}
+	}
+	return req, nil
 }
 
 // decodeMessages accepts a bare array of messages or an object wrapping one,
@@ -138,6 +158,9 @@ func decodeMessages(raw []byte) ([]api.Message, error) {
 		return nil, fmt.Errorf("no messages found")
 	}
 	for i, m := range msgs {
+		if m.Type == "slot" && m.Name != "" {
+			continue
+		}
 		if m.Role == "" {
 			return nil, fmt.Errorf("message %d has no role", i+1)
 		}

@@ -178,6 +178,14 @@ A file holding a JSON array (or an object with a `messages` array) is committed
 as chat messages. Any other non-empty file is committed as one `user` message.
 Pass `--file -` to read stdin.
 
+An object input can include `tools`, `output` and `engine` alongside `messages`.
+For tool prompts, `tools` is an object with a `definitions` array of native
+function tools and optional `tool_choice` and `parallel_tool_calls`. Each
+definition may include PromptOn-only `output_schema` and `output_examples`.
+Message history slots use `{"type":"slot","name":"history"}` with a declared
+list input. Native message fields, null content and tool-call IDs are preserved.
+The server validates the contract; deployed tool prompts require SDK 0.4.0 or newer.
+
 Versions are immutable, and committing one changes nothing at runtime. A
 version goes live only when a deployment pins it.
 

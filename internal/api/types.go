@@ -179,29 +179,59 @@ type PromptTemplate struct {
 
 // Message is one chat message in a prompt version.
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string `json:"role,omitempty"`
+	Content any    `json:"content"`
+	Type    string `json:"type,omitempty"`
+	Name    string `json:"name,omitempty"`
+	raw     map[string]json.RawMessage
+}
+
+// UnmarshalJSON retains native continuation fields and explicit null content.
+func (m *Message) UnmarshalJSON(data []byte) error {
+	type fields Message
+	var value fields
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*m = Message(value)
+	m.raw = raw
+	return nil
+}
+
+func (m Message) MarshalJSON() ([]byte, error) {
+	if m.raw != nil {
+		return json.Marshal(m.raw)
+	}
+	type fields Message
+	return json.Marshal(fields(m))
 }
 
 // CommitVersionRequest commits an immutable chat prompt version.
 type CommitVersionRequest struct {
-	Messages []Message `json:"messages,omitempty"`
-	Engine   string    `json:"engine,omitempty"`
-	Message  string    `json:"message,omitempty"`
+	Messages []Message       `json:"messages,omitempty"`
+	Engine   string          `json:"engine,omitempty"`
+	Message  string          `json:"message,omitempty"`
+	Tools    json.RawMessage `json:"tools,omitempty"`
+	Output   json.RawMessage `json:"output,omitempty"`
 }
 
 // PromptVersion is the full committed version.
 type PromptVersion struct {
-	ID                string    `json:"id"`
-	PromptTemplateID  string    `json:"prompt_template_id"`
-	Number            int       `json:"number"`
-	Engine            string    `json:"engine"`
-	Messages          []Message `json:"messages"`
-	TextTemplate      *string   `json:"text_template"`
-	DetectedVariables []string  `json:"detected_variables"`
-	Message           *string   `json:"message"`
-	ContentSHA256     string    `json:"content_sha256"`
-	CreatedAt         string    `json:"created_at"`
+	ID                string          `json:"id"`
+	PromptTemplateID  string          `json:"prompt_template_id"`
+	Number            int             `json:"number"`
+	Engine            string          `json:"engine"`
+	Messages          []Message       `json:"messages"`
+	Tools             json.RawMessage `json:"tools,omitempty"`
+	TextTemplate      *string         `json:"text_template"`
+	DetectedVariables []string        `json:"detected_variables"`
+	Message           *string         `json:"message"`
+	ContentSHA256     string          `json:"content_sha256"`
+	CreatedAt         string          `json:"created_at"`
 }
 
 // ---- models ---------------------------------------------------------------
