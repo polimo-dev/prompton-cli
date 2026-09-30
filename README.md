@@ -266,11 +266,11 @@ prompton provider-key status
 prompton prompt get support_reply           # what is live right now
 prompton deployments list support_reply
 prompton deployments list support_reply --environment production   # history
-prompton rollback support_reply --environment production --revision 2
+prompton rollback support_reply --environment production --revision v2026.09.30-2
 ```
 
 Rolling back re-commits an old revision, so it produces a new, higher revision
-number. History is never rewritten.
+label. History is never rewritten.
 
 ---
 
@@ -324,7 +324,7 @@ Every command accepts the global flags below.
 |---|---|
 | `prompton deploy <prompt> --model M [--environment E] [--params JSON] [--provider-options JSON] [--version latest\|N\|UUID]` | Commits a revision |
 | `prompton deployments list <prompt> [--environment E]` | Live revisions, or one environment's history |
-| `prompton rollback <prompt> --revision N [--environment E]` | Re-commits a past revision |
+| `prompton rollback <prompt> --revision vYYYY.MM.DD-N [--environment E]` | Re-commits a past revision |
 
 ### Keys
 
@@ -382,7 +382,7 @@ Failures are JSON too, on stderr, in the same envelope the API uses:
     "code": "not_found",
     "message": "no such revision",
     "status": 404,
-    "details": {"available_revisions": [1, 2, 3]}
+    "details": {"available_revisions": ["v2026.09.30-1", "v2026.09.30-2", "v2026.09.30-3"]}
   }
 }
 ```

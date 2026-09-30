@@ -386,7 +386,7 @@ func TestGetPromptCarriesVersionsAndDeployments(t *testing.T) {
 	  "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":["question"],"created_at":"2026-09-02T…"},
 	              {"id":"v1","number":1,"message":"migrated from the app","detected_variables":["question"],"created_at":"2026-09-01T…"}],
 	  "deployments":[
-	    {"id":"d1","revision":3,"environment":"production","model_id":"m-uuid",
+	    {"id":"d1","revision":"v2026.09.30-3","environment":"production","model_id":"m-uuid",
 	     "model":"openai/gpt-4o-mini","params":{"temperature":0.4},
 	     "provider_options":{"only":["OpenAI"]},
 	     "template_pins":{"default":"v2"},"created_at":"2026-09-02T…"}
@@ -558,7 +558,7 @@ func TestRegisterModelSendsOnlyModelIDWhenNothingElseIsGiven(t *testing.T) {
 
 // ---- deployments ----------------------------------------------------------
 
-const deploymentJSON = `{"id":"0192d","revision":3,"environment":"production",
+const deploymentJSON = `{"id":"0192d","revision":"v2026.09.30-3","environment":"production",
   "model_id":"0192m","model":"openai/gpt-4o-mini","params":{"temperature":0.4},
   "provider_options":{"allow_fallbacks":false},
   "template_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}`
@@ -573,7 +573,7 @@ func TestListDeploymentsLive(t *testing.T) {
 	if c.Query != "" {
 		t.Errorf("without --environment there must be no query string, got %q", c.Query)
 	}
-	if len(got) != 1 || got[0].Revision != 3 || got[0].TemplatePins["default"] != "v2" {
+	if len(got) != 1 || got[0].Revision != "v2026.09.30-3" || got[0].TemplatePins["default"] != "v2" {
 		t.Errorf("deployments = %+v", got)
 	}
 }
@@ -627,23 +627,23 @@ func TestCreateDeploymentWithProviderString(t *testing.T) {
 }
 
 func TestRollback(t *testing.T) {
-	s := newStub(t, 200, `{"id":"0192d","revision":4,"environment":"production","model_id":"0192m",
+	s := newStub(t, 200, `{"id":"0192d","revision":"v2026.09.30-4","environment":"production","model_id":"0192m",
 	  "model":"openai/gpt-4o-mini","params":{},"provider_options":{},
 	  "template_pins":{"default":"v1"},"created_at":"2026-09-02T12:00:00Z"}`)
 
 	got, err := s.client("tok").Rollback(ctx(), "personal", "helpdesk", "support_reply",
-		api.RollbackRequest{Environment: "production", Revision: 1})
+		api.RollbackRequest{Environment: "production", Revision: "v2026.09.30-1"})
 	if err != nil {
 		t.Fatalf("Rollback: %v", err)
 	}
 	c := s.expect(http.MethodPost,
 		"/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments/rollback")
 	body := c.bodyMap(t)
-	if body["revision"] != float64(1) {
+	if body["revision"] != "v2026.09.30-1" {
 		t.Errorf("request body = %v", body)
 	}
-	if got.Revision != 4 {
-		t.Errorf("rolling back must produce a new higher revision, got %d", got.Revision)
+	if got.Revision != "v2026.09.30-4" {
+		t.Errorf("rolling back must produce a new higher revision, got %s", got.Revision)
 	}
 }
 
@@ -751,10 +751,10 @@ func TestInvalidRequestHintListsFieldErrors(t *testing.T) {
 
 func TestNotFoundHintListsAvailableRevisions(t *testing.T) {
 	s := newStub(t, 404, `{"error":{"code":"not_found","message":"no such revision",
-	  "details":{"available_revisions":[1,2,3]}}}`)
-	_, err := s.client("tok").Rollback(ctx(), "personal", "helpdesk", "uc", api.RollbackRequest{Revision: 9})
+	  "details":{"available_revisions":["v2026.09.30-1","v2026.09.30-2","v2026.09.30-3"]}}}`)
+	_, err := s.client("tok").Rollback(ctx(), "personal", "helpdesk", "uc", api.RollbackRequest{Revision: "v2026.09.30-9"})
 	apiErr, _ := api.AsError(err)
-	if hint := apiErr.Hint(); !strings.Contains(hint, "1, 2, 3") {
+	if hint := apiErr.Hint(); !strings.Contains(hint, "v2026.09.30-1, v2026.09.30-2, v2026.09.30-3") {
 		t.Errorf("Hint() = %q, want the available revisions", hint)
 	}
 }

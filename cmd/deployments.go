@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -10,6 +11,8 @@ import (
 	"github.com/polimo-dev/prompton-cli/internal/meta"
 	"github.com/polimo-dev/prompton-cli/internal/output"
 )
+
+var revisionLabelPattern = regexp.MustCompile(`^v\d{4}\.\d{2}\.\d{2}-[1-9]\d*$`)
 
 func newDeployCommand(g *globals) *cobra.Command {
 	var (
@@ -102,7 +105,7 @@ Promoting is the same command against another environment with the same version.
 			p.Fields([][2]string{
 				{"Prompt", prompt},
 				{"Environment", deployment.Environment},
-				{"Revision", fmt.Sprintf("%d", deployment.Revision)},
+				{"Revision", deployment.Revision},
 				{"Model", deployment.Model},
 				{"Catalog id", deployment.ModelID},
 				{"Params", output.Dash(output.Compact(deployment.Params))},
@@ -168,23 +171,23 @@ environment, newest first.`,
 func newRollbackCommand(g *globals) *cobra.Command {
 	var (
 		environment string
-		revision    int
+		revision    string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "rollback <prompt>",
 		Short: "Re-commit a past revision",
 		Long: `Roll back by re-committing an earlier revision's pins. History is never
-rewound, so this produces a new, higher revision number carrying the old
+rewound, so this produces a new revision label carrying the old
 configuration.`,
-		Example: "  " + meta.Name + " rollback support_reply --environment production --revision 2",
+		Example: "  " + meta.Name + " rollback support_reply --environment production --revision v2026.09.30-2",
 		Args:    exactArgs(1, "<prompt>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("revision") {
-				return usagef("--revision is required: the past revision number to restore")
+				return usagef("--revision is required: the past revision label to restore")
 			}
-			if revision < 1 {
-				return usagef("--revision must be 1 or greater")
+			if !revisionLabelPattern.MatchString(revision) {
+				return usagef("--revision must look like v2026.09.30-1")
 			}
 			client, _, err := g.client()
 			if err != nil {
@@ -210,7 +213,7 @@ configuration.`,
 			p.Fields([][2]string{
 				{"Prompt", args[0]},
 				{"Environment", deployment.Environment},
-				{"Revision", fmt.Sprintf("%d (restored from %d)", deployment.Revision, revision)},
+				{"Revision", fmt.Sprintf("%s (restored from %s)", deployment.Revision, revision)},
 				{"Model", deployment.Model},
 				{"Params", output.Dash(output.Compact(deployment.Params))},
 				{"Pins", output.Dash(output.CompactStrings(deployment.TemplatePins))},
@@ -220,7 +223,7 @@ configuration.`,
 	}
 
 	cmd.Flags().StringVar(&environment, "environment", "", "environment slug (server default: production)")
-	cmd.Flags().IntVar(&revision, "revision", 0, "revision number to restore")
+	cmd.Flags().StringVar(&revision, "revision", "", "revision label to restore")
 	return cmd
 }
 
@@ -233,7 +236,7 @@ func deploymentRows(deployments []api.Deployment) [][]string {
 	for _, d := range deployments {
 		rows = append(rows, []string{
 			d.Environment,
-			fmt.Sprintf("%d", d.Revision),
+			d.Revision,
 			d.Model,
 			output.Dash(output.Compact(d.Params)),
 			output.Dash(output.Truncate(output.CompactStrings(d.TemplatePins), 46)),

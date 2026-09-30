@@ -11,7 +11,7 @@ import (
 )
 
 const contractPath = "/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/contract"
-const contractReply = `{"prompt_key":"support_reply","draft":{"content":{"kind":"decision","decision":{"state":{"id":9007199254740993},"questions":{"mood":{"type":"choice","criteria":{"-3":null,"+3":null}}}}},"contract":{"kind":"decision"}},"deployed":[{"environment":"production","revision":2,"api":"chat_completions","request_path":"/api/v1/chat/completions","content":{"kind":"chat"}}],"response_formats":{"decisions":{"choice":{"choice":"string"}}}}`
+const contractReply = `{"prompt_key":"support_reply","draft":{"content":{"kind":"decision","decision":{"state":{"id":9007199254740993},"questions":{"mood":{"type":"choice","criteria":{"-3":null,"+3":null}}}}},"contract":{"kind":"decision"}},"deployed":[{"environment":"production","revision":"v2026.09.30-2","api":"chat_completions","request_path":"/api/v1/chat/completions","content":{"kind":"chat"}}],"response_formats":{"decisions":{"choice":{"choice":"string"}}}}`
 
 func TestPromptContractInspectsWithoutMutation(t *testing.T) {
 	h := newHarness(t)

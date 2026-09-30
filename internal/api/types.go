@@ -281,7 +281,7 @@ type RegisterModelRequest struct {
 // prompt version. TemplatePins is retained for default-only wire compatibility.
 type Deployment struct {
 	ID              string            `json:"id"`
-	Revision        int               `json:"revision"`
+	Revision        string            `json:"revision"`
 	Environment     string            `json:"environment"`
 	ModelID         string            `json:"model_id"`
 	Model           string            `json:"model"`
@@ -307,7 +307,7 @@ type CreateDeploymentRequest struct {
 // RollbackRequest re-commits a past revision as a new one.
 type RollbackRequest struct {
 	Environment string `json:"environment,omitempty"`
-	Revision    int    `json:"revision"`
+	Revision    string `json:"revision"`
 }
 
 // ---- keys -----------------------------------------------------------------

@@ -734,7 +734,7 @@ func TestPromptGetShowsPromptsAndDeployments(t *testing.T) {
 		  "input_schema":[{"name":"question","type":"string","required":true,"description":null}],
 		  "default_params":{"temperature":0.5},"tags":[],"created_at":"2026-09-01T10:00:00Z",
 		  "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":[],"created_at":""}],
-		  "deployments":[{"id":"d1","revision":3,"environment":"production","model_id":"m1",
+		  "deployments":[{"id":"d1","revision":"v2026.09.30-3","environment":"production","model_id":"m1",
 		    "model":"openai/gpt-4o-mini","params":{"temperature":0.4},"provider_options":{},
 		    "template_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}]}`)
 
@@ -915,7 +915,7 @@ func TestModelsListJSON(t *testing.T) {
 
 // ---- deploy ---------------------------------------------------------------
 
-const deployReply = `{"id":"d1","revision":4,"environment":"production","model_id":"11111111-1111-4111-8111-111111111111",
+const deployReply = `{"id":"d1","revision":"v2026.09.30-4","environment":"production","model_id":"11111111-1111-4111-8111-111111111111",
   "model":"openai/gpt-4o-mini","params":{"temperature":0.4},"provider_options":{},
   "template_pins":{"default":"22222222-2222-4222-8222-222222222222"},"created_at":"2026-09-02T12:00:00Z"}`
 
@@ -1062,7 +1062,7 @@ func TestDeployJSON(t *testing.T) {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	payload := got.json(t)
-	if payload["revision"] != float64(4) {
+	if payload["revision"] != "v2026.09.30-4" {
 		t.Errorf("payload = %v", payload)
 	}
 }
@@ -1107,15 +1107,15 @@ func TestRollback(t *testing.T) {
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments/rollback", 200, deployReply)
 
-	got := h.run("rollback", "support_reply", "--environment", "production", "--revision", "2")
+	got := h.run("rollback", "support_reply", "--environment", "production", "--revision", "v2026.09.30-2")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	body := h.lastBody()
-	if body["revision"] != float64(2) || body["environment"] != "production" {
+	if body["revision"] != "v2026.09.30-2" || body["environment"] != "production" {
 		t.Errorf("body = %v", body)
 	}
-	if !strings.Contains(got.stdout, "restored from 2") {
+	if !strings.Contains(got.stdout, "restored from v2026.09.30-2") {
 		t.Errorf("stdout = %q, want it clear that a new revision was made", got.stdout)
 	}
 }
@@ -1128,17 +1128,25 @@ func TestRollbackWithoutRevisionIsAUsageError(t *testing.T) {
 	}
 }
 
+func TestRollbackRejectsNumericRevision(t *testing.T) {
+	h := newHarness(t)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	if got := h.run("rollback", "support_reply", "--revision", "2"); got.code != 2 {
+		t.Errorf("exit = %d, want 2", got.code)
+	}
+}
+
 func TestRollbackSurfacesAvailableRevisions(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments/rollback", 404,
-		`{"error":{"code":"not_found","message":"no such revision","details":{"available_revisions":[1,2,3]}}}`)
+		`{"error":{"code":"not_found","message":"no such revision","details":{"available_revisions":["v2026.09.30-1","v2026.09.30-2","v2026.09.30-3"]}}}`)
 
-	got := h.run("rollback", "support_reply", "--revision", "9")
+	got := h.run("rollback", "support_reply", "--revision", "v2026.09.30-9")
 	if got.code != 1 {
 		t.Errorf("exit = %d, want 1", got.code)
 	}
-	if !strings.Contains(got.stderr, "1, 2, 3") {
+	if !strings.Contains(got.stderr, "v2026.09.30-1, v2026.09.30-2, v2026.09.30-3") {
 		t.Errorf("stderr = %q, want the revisions that do exist", got.stderr)
 	}
 }
