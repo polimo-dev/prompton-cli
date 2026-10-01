@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
 func TestCommitRetainsToolsAndNativeMessages(t *testing.T) {
-	raw := []byte(`{"engine":"raw","messages":[{"type":"slot","name":"history"},{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"id\":9007199254740993}"}}],"reasoning_details":[{"signature":"opaque"}]},{"role":"tool","tool_call_id":"call-1","content":[{"type":"text","text":"{{literal}}"}]}],"tools":{"definitions":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object"}},"output_examples":[{"id":9007199254740993}]}]}}`)
+	raw := []byte(`{"engine":"raw","messages":[{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"id\":9007199254740993}"}}],"reasoning_details":[{"signature":"opaque"}]},{"role":"tool","tool_call_id":"call-1","content":[{"type":"text","text":"{{literal}}"}]}],"tools":{"definitions":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object"}},"output_examples":[{"id":9007199254740993}]}]}}`)
 	for _, format := range []string{"auto", "messages"} {
 		req, err := buildCommit(raw, format, "prompt.json")
 		if err != nil {
@@ -32,6 +33,38 @@ func TestCommitRetainsToolsAndNativeMessages(t *testing.T) {
 		if req.Engine != "raw" {
 			t.Fatal("engine was not retained")
 		}
+	}
+}
+
+func TestCommitRejectsMessageSlots(t *testing.T) {
+	cases := []struct {
+		name   string
+		raw    []byte
+		format string
+	}{
+		{
+			name:   "bare array",
+			raw:    []byte(`[{"type":"slot","name":"history"}]`),
+			format: "auto",
+		},
+		{
+			name:   "object wrapper",
+			raw:    []byte(`{"messages":[{"role":"system","type":"slot","name":"history","content":"ignored"}]}`),
+			format: "messages",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := buildCommit(tc.raw, tc.format, "prompt.json")
+			if err == nil {
+				t.Fatal("message slot accepted")
+			}
+			if got := err.Error(); !strings.Contains(got, `type "slot"`) ||
+				!strings.Contains(got, "Message slots are not supported") ||
+				!strings.Contains(got, "compose conversation history in app code") {
+				t.Fatalf("error = %q", got)
+			}
+		})
 	}
 }
 

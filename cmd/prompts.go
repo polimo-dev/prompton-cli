@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -30,8 +31,9 @@ version goes live when a deployment revision pins it.
 
 The file is read as chat messages when it holds a JSON array (or an object with
 a "messages" array). An object can also include tools, output and engine.
-Message slots and native tool-call fields are preserved. Any other non-empty
-file is committed as one user message.
+Native tool-call fields are preserved. Conversation history belongs in your app's
+provider request, not in PromptOn messages. Any other non-empty file is committed
+as one user message.
 Pass "-" as the file to read stdin.`,
 		Example: "  " + meta.Name + " prompt commit support_reply \\\n" +
 			"      --file messages.json --message 'migrated from the app'",
@@ -104,6 +106,11 @@ func buildCommit(raw []byte, format, name string) (api.CommitVersionRequest, err
 	case "auto", "":
 		if msgs, err := decodeMessages(raw); err == nil {
 			return commitWithMetadata(raw, msgs, name)
+		} else {
+			var slotErr *messageSlotError
+			if errors.As(err, &slotErr) {
+				return api.CommitVersionRequest{}, usagef("%s: %v", name, err)
+			}
 		}
 		if strings.TrimSpace(text) == "" {
 			return api.CommitVersionRequest{}, usagef("%s is empty", name)
@@ -112,6 +119,14 @@ func buildCommit(raw []byte, format, name string) (api.CommitVersionRequest, err
 	default:
 		return api.CommitVersionRequest{}, usagef("--format must be auto or messages")
 	}
+}
+
+type messageSlotError struct {
+	message string
+}
+
+func (e *messageSlotError) Error() string {
+	return e.message
 }
 
 func commitWithMetadata(raw []byte, messages []api.Message, name string) (api.CommitVersionRequest, error) {
@@ -158,8 +173,10 @@ func decodeMessages(raw []byte) ([]api.Message, error) {
 		return nil, fmt.Errorf("no messages found")
 	}
 	for i, m := range msgs {
-		if m.Type == "slot" && m.Name != "" {
-			continue
+		if m.Type == "slot" {
+			return nil, &messageSlotError{
+				message: fmt.Sprintf("message %d uses type %q: Message slots are not supported; compose conversation history in app code.", i+1, m.Type),
+			}
 		}
 		if m.Role == "" {
 			return nil, fmt.Errorf("message %d has no role", i+1)

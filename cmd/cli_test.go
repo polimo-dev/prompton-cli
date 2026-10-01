@@ -854,6 +854,25 @@ func TestPromptCommitRejectsTextFormat(t *testing.T) {
 	}
 }
 
+func TestPromptCommitRejectsMessageSlotsBeforeHTTP(t *testing.T) {
+	h := newHarness(t)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	file := writeTemp(t, "messages.json", `{"messages":[{"role":"system","type":"slot","name":"history"}]}`)
+
+	got := h.run("prompt", "commit", "support_reply", "--file", file)
+	if got.code != 2 {
+		t.Fatalf("exit = %d, want 2: %s", got.code, got.stderr)
+	}
+	for _, want := range []string{"type \"slot\"", "Message slots are not supported", "compose conversation history in app code"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Fatalf("stderr = %q, want %q", got.stderr, want)
+		}
+	}
+	if len(h.requests) != 0 {
+		t.Errorf("message slots must be caught before any request, got %v", h.paths())
+	}
+}
+
 func TestPromptCommitWithoutAFileIsAUsageError(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
