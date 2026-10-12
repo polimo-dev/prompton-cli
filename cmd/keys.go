@@ -19,7 +19,7 @@ func newAPIKeysCommand(g *globals) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "api-keys",
 		Aliases: []string{"api-key"},
-		Short:   "Runtime API keys for a project",
+		Short:   "SDK keys for a project",
 		Args:    noArgs,
 		RunE:    func(c *cobra.Command, _ []string) error { return c.Help() },
 	}
@@ -35,7 +35,7 @@ func newAPIKeysIssueCommand(g *globals) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "issue",
-		Short: "Issue a runtime key for the app",
+		Short: "Issue an SDK key for the app",
 		Long: `Issue the key the application puts in its environment. It is scoped to this
 project and to deployed prompt reads (read) and monitoring logs (logs) only.
 
@@ -90,7 +90,7 @@ the app names the environment in each request.`,
 func newAPIKeysListCommand(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List the project's live runtime keys",
+		Short: "List the project's live SDK keys",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, _, err := g.client()

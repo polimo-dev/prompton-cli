@@ -352,7 +352,7 @@ func apiKeysPath(org, project string) string {
 	return "/orgs/" + seg(org) + "/projects/" + seg(project) + "/api-keys"
 }
 
-// ListAPIKeys returns the project's live runtime keys (secrets not included).
+// ListAPIKeys returns the project's live SDK keys (secrets not included).
 func (c *Client) ListAPIKeys(ctx context.Context, org, project string) ([]APIKey, error) {
 	var out apiKeysEnvelope
 	if err := c.do(ctx, http.MethodGet, apiKeysPath(org, project), nil, &out); err != nil {
@@ -361,7 +361,7 @@ func (c *Client) ListAPIKeys(ctx context.Context, org, project string) ([]APIKey
 	return out.APIKeys, nil
 }
 
-// IssueAPIKey mints a runtime key. The raw secret is in the response and
+// IssueAPIKey mints an SDK key. The raw secret is in the response and
 // nowhere else, ever again.
 func (c *Client) IssueAPIKey(ctx context.Context, org, project string, req IssueAPIKeyRequest) (*APIKey, error) {
 	var out APIKey

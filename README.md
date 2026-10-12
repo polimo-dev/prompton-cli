@@ -218,7 +218,7 @@ version. Committing it makes it the live configuration for that
   `--environment` and the same version — staging can carry its own params, say
   `--params '{"temperature":0.7}'` against the same model.
 
-### 5. Issue the runtime key
+### 5. Issue the SDK key
 
 ```sh
 prompton api-keys issue --name 'Helpdesk server' --scopes read,logs
@@ -237,12 +237,12 @@ PTN_KEY=$(prompton api-keys issue --quiet)
 ### 6. Point the app at PromptOn
 
 Replace the hard-coded prompt and model with a deployed prompt fetch. The
-runtime API (`/api/v1/prompts`, `/api/v1/prompts/:key/render`,
+PromptOn API (`/api/v1/prompts`, `/api/v1/prompts/:key/render`,
 `/api/v1/logs`) is documented
 separately; the app calls its LLM provider directly, with its own key, so
 PromptOn stays out of the request path.
 
-Confirm onboarding is done by filling a deployed prompt with the runtime key:
+Confirm onboarding is done by filling a deployed prompt with the SDK key:
 
 ```sh
 curl -sS -H "Authorization: Bearer $PTN_KEY" \
@@ -331,8 +331,8 @@ Every command accepts the global flags below.
 
 | Command | What it does |
 |---|---|
-| `prompton api-keys issue [--name N] [--scopes read,logs]` | Mints a runtime key; the secret is shown once |
-| `prompton api-keys list` | Live runtime keys, without secrets |
+| `prompton api-keys issue [--name N] [--scopes read,logs]` | Mints an SDK key; the secret is shown once |
+| `prompton api-keys list` | Live SDK keys, without secrets |
 | `prompton provider-key set [--secret S] [--label L]` | Stores the organization's OpenRouter key |
 | `prompton provider-key status` | Whether one is connected, and its masked hint |
 

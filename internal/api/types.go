@@ -312,7 +312,7 @@ type RollbackRequest struct {
 
 // ---- keys -----------------------------------------------------------------
 
-// APIKey is a project-scoped runtime key. Key (the raw secret) is populated
+// APIKey is a project-scoped SDK key. Key (the raw secret) is populated
 // only in the response that creates it.
 type APIKey struct {
 	ID         string   `json:"id"`
