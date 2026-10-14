@@ -86,8 +86,8 @@ type CreateProjectRequest struct {
 
 // ---- prompts ------------------------------------------------------------
 
-// InputField is one declared input variable of a prompt.
-type InputField struct {
+// Variable is one declared input variable of a prompt.
+type Variable struct {
 	Name        string  `json:"name"`
 	Type        string  `json:"type"`
 	Required    bool    `json:"required"`
@@ -102,7 +102,7 @@ type Prompt struct {
 	Name          string         `json:"name"`
 	Description   *string        `json:"description"`
 	Kind          string         `json:"kind"`
-	InputSchema   []InputField   `json:"input_schema"`
+	Variables     []Variable     `json:"variables"`
 	DefaultParams map[string]any `json:"default_params"`
 	Tags          []string       `json:"tags"`
 	CreatedAt     string         `json:"created_at"`
@@ -128,7 +128,7 @@ type CreatePromptRequest struct {
 	Name          string         `json:"name,omitempty"`
 	Kind          string         `json:"kind,omitempty"`
 	Description   string         `json:"description,omitempty"`
-	InputSchema   []InputField   `json:"input_schema,omitempty"`
+	Variables     *[]Variable    `json:"variables,omitempty"`
 	DefaultParams map[string]any `json:"default_params,omitempty"`
 	Tags          []string       `json:"tags,omitempty"`
 }
@@ -140,14 +140,14 @@ type UpdatePromptRequest struct {
 	Name          *string         `json:"name,omitempty"`
 	Description   *string         `json:"description,omitempty"`
 	Tags          *[]string       `json:"tags,omitempty"`
-	InputSchema   *[]InputField   `json:"input_schema,omitempty"`
+	Variables     *[]Variable     `json:"variables,omitempty"`
 	DefaultParams *map[string]any `json:"default_params,omitempty"`
 }
 
 // Empty reports whether the patch would change nothing.
 func (r UpdatePromptRequest) Empty() bool {
 	return r.Name == nil && r.Description == nil && r.Tags == nil &&
-		r.InputSchema == nil && r.DefaultParams == nil
+		r.Variables == nil && r.DefaultParams == nil
 }
 
 // ---- prompt templates -----------------------------------------------------

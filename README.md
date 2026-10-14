@@ -18,35 +18,32 @@ prompton deploy support_reply --provider openrouter --model google/gemini-3.8-fl
 prompton api-keys issue --name 'Helpdesk server'
 ```
 
-Readable provider/model, prompt version, deployment revision, promotion, and
-Decision prompt commands require the PromptOn readable-resource server contract.
-Older servers may accept a raw model string as an OpenRouter model while
-ignoring `--provider`; use this CLI with a server that supports the readable
-request fields documented below. Version 0.7.0 also uses readable response references:
+Version 0.8.0 requires a server that accepts `variables` for prompt variable
+definitions and the readable resource fields documented below. It uses readable response references:
 organization and project slugs, prompt keys, provider/model pairs, prompt version
 numbers, and deployment revisions. JSON output and saved identity metadata omit
 private resource IDs. Existing configuration files still load; select organizations
 by slug, name, or `personal`. SDK key metadata uses its name and prefix.
 
-See [CHANGELOG.md](CHANGELOG.md) for the 0.7.0 GitHub source release notes.
+See [CHANGELOG.md](CHANGELOG.md) for the 0.8.0 GitHub source release notes.
 
 ---
 
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.7.0/install.sh | PTN_VERSION=v0.7.0 sh
+curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.8.0/install.sh | PTN_VERSION=v0.8.0 sh
 ```
 
 This pins both the installer source and the release to the current stable CLI,
-`v0.7.0`. The script detects your OS and architecture, downloads the matching
+`v0.8.0`. The script detects your OS and architecture, downloads the matching
 release archive, **verifies its SHA-256 against the release checksums**, and
 installs to `/usr/local/bin` when that is writable or `~/.local/bin` otherwise.
 Override the install directory when needed:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.7.0/install.sh | \
-  PTN_VERSION=v0.7.0 PTN_INSTALL_DIR="$HOME/bin" sh
+curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.8.0/install.sh | \
+  PTN_VERSION=v0.8.0 PTN_INSTALL_DIR="$HOME/bin" sh
 ```
 
 When `PTN_VERSION` is omitted, `install.sh` resolves the latest stable GitHub
@@ -57,7 +54,7 @@ pre-release, rebuilt on every push to `main`.
 Source build route:
 
 ```sh
-git clone --branch v0.7.0 --depth 1 https://github.com/polimo-dev/prompton-cli.git
+git clone --branch v0.8.0 --depth 1 https://github.com/polimo-dev/prompton-cli.git
 cd prompton-cli
 make build
 mkdir -p "$HOME/bin"
@@ -73,7 +70,7 @@ put `prompton` on your `PATH`.
 ### Uninstall
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.7.0/uninstall.sh | sh
+curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.8.0/uninstall.sh | sh
 ```
 
 Signs the CLI out (revoking the session token on the server), removes the `prompton` binary
@@ -154,11 +151,11 @@ contract and cannot be changed later.
 prompton prompt create support_reply \
   --name 'Support reply' \
   --description 'Answers a customer message in the support inbox' \
-  --input-schema-file schema.json \
+  --variables-file variables.json \
   --default-params '{"temperature":0.5}'
 ```
 
-`schema.json` declares the variables the template expects:
+`variables.json` declares the variables the template expects:
 
 ```json
 [
@@ -199,7 +196,7 @@ definition may include PromptOn-only `output_schema` and `output_examples`.
 Native message fields, null content and tool-call IDs are preserved.
 Conversation history is not committed as a PromptOn message slot; compose it in
 your app when you send the final provider request. The server validates the
-contract; deployed tool prompts require SDK 0.4.0 or newer.
+contract; use SDK 0.8.0 to read the current configuration format.
 
 Create Decision prompts with `--kind decision`, then commit a JSON object with
 `kind: "decision"` and a `decision` object:
@@ -272,7 +269,7 @@ PTN_KEY=$(prompton api-keys issue --quiet)
 ### 6. Point the app at PromptOn
 
 Replace the hard-coded prompt and model with a deployed prompt fetch. The
-PromptOn API (`/api/v1/prompts`, `/api/v1/prompts/:key/render`,
+PromptOn API (`/api/v1/prompts/:key`, `/api/v1/prompts/:key/render`,
 `/api/v1/logs`) is documented
 separately; the app calls its LLM provider directly, with its own key, so
 PromptOn stays out of the request path.
@@ -338,8 +335,8 @@ Every command accepts the global flags below.
 | `prompton prompt list` | Every call site in the project |
 | `prompton prompt get <key>` | The prompt with its versions and live deployments |
 | `prompton prompt contract <key> [--candidate-file F] --json` | Read live, draft, and optional proposed response contracts without saving or deploying |
-| `prompton prompt create <key> [--kind chat\|decision] [--name N] [--description D] [--input-schema-file F] [--default-params JSON] [--tags a,b]` | Creates a Chat or Decision prompt |
-| `prompton prompt update <key> [--name N] [--description D] [--tags a,b] [--input-schema-file F] [--default-params JSON]` | Changes only the fields given; schema and params are replaced, not merged |
+| `prompton prompt create <key> [--kind chat\|decision] [--name N] [--description D] [--variables-file F] [--default-params JSON] [--tags a,b]` | Creates a Chat or Decision prompt |
+| `prompton prompt update <key> [--name N] [--description D] [--tags a,b] [--variables-file F] [--default-params JSON]` | Changes only the fields given; variables and params are replaced, not merged |
 
 ### Prompts
 
@@ -543,7 +540,7 @@ and the release updated in place, so `PTN_VERSION=main` always has the newest
 build.
 
 Releases are cut by tagging a new, unused stable version such as
-`git tag v0.7.1 && git push origin v0.7.1`. Never move or recreate an existing
+`git tag v0.8.1 && git push origin v0.8.1`. Never move or recreate an existing
 stable tag; publish a new version instead. The tag triggers
 [`.github/workflows/release.yml`](.github/workflows/release.yml), which runs
 GoReleaser to build the archives and publish the GitHub release.

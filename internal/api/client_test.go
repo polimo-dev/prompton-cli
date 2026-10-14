@@ -355,7 +355,7 @@ func TestCreateProjectOmitsUnsetOptionalFields(t *testing.T) {
 
 const promptJSON = `{"id":"0192u","key":"support_reply","name":"Support reply",
   "description":null,"kind":"chat",
-  "input_schema":[{"name":"question","type":"string","required":true,"description":null,"example":null}],
+  "variables":[{"name":"question","type":"string","required":true,"description":null,"example":null}],
   "default_params":{"temperature":0.5},"tags":[],"created_at":"2026-09-01T10:05:00Z"}`
 
 func TestListPrompts(t *testing.T) {
@@ -371,8 +371,8 @@ func TestListPrompts(t *testing.T) {
 	if got[0].Description != nil {
 		t.Error("a null description must decode as nil, not as an empty string")
 	}
-	if got[0].InputSchema[0].Name != "question" || !got[0].InputSchema[0].Required {
-		t.Errorf("input schema = %+v", got[0].InputSchema)
+	if got[0].Variables[0].Name != "question" || !got[0].Variables[0].Required {
+		t.Errorf("variables = %+v", got[0].Variables)
 	}
 	if got[0].DefaultParams["temperature"] != 0.5 {
 		t.Errorf("default params = %v", got[0].DefaultParams)
@@ -381,7 +381,7 @@ func TestListPrompts(t *testing.T) {
 
 func TestGetPromptCarriesVersionsAndDeployments(t *testing.T) {
 	s := newStub(t, 200, `{"id":"0192u","key":"support_reply","name":"Support reply",
-	  "kind":"chat","input_schema":[],"default_params":{},"tags":[],"created_at":"2026-09-01T10:05:00Z",
+	  "kind":"chat","variables":[],"default_params":{},"tags":[],"created_at":"2026-09-01T10:05:00Z",
 	  "description":null,
 	  "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":["question"],"created_at":"2026-09-02T…"},
 	              {"id":"v1","number":1,"message":"migrated from the app","detected_variables":["question"],"created_at":"2026-09-01T…"}],
@@ -414,7 +414,7 @@ func TestCreatePrompt(t *testing.T) {
 		Key:  "support_reply",
 		Kind: "chat",
 		Name: "Support reply",
-		InputSchema: []api.InputField{
+		Variables: &[]api.Variable{
 			{Name: "question", Type: "string", Required: true},
 		},
 		DefaultParams: map[string]any{"temperature": 0.5},
@@ -427,13 +427,13 @@ func TestCreatePrompt(t *testing.T) {
 	if body["key"] != "support_reply" || body["kind"] != "chat" {
 		t.Errorf("request body = %v", body)
 	}
-	schema, ok := body["input_schema"].([]any)
+	schema, ok := body["variables"].([]any)
 	if !ok || len(schema) != 1 {
-		t.Fatalf("input_schema = %v", body["input_schema"])
+		t.Fatalf("variables = %v", body["variables"])
 	}
 	field := schema[0].(map[string]any)
 	if field["name"] != "question" || field["required"] != true {
-		t.Errorf("input_schema field = %v", field)
+		t.Errorf("variables field = %v", field)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/polimo-dev/prompton-cli/internal/config"
+	"github.com/polimo-dev/prompton-cli/internal/meta"
 )
 
 // ---- exit codes and credential handling -----------------------------------
@@ -606,7 +607,7 @@ func TestConflictOnPromptIsAlsoHandled(t *testing.T) {
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts", 409,
 		conflictBody("prompt", `{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat",
-		  "description":null,"input_schema":[],"default_params":{},"tags":[],"created_at":""}`))
+		  "description":null,"variables":[],"default_params":{},"tags":[],"created_at":""}`))
 
 	got := h.run("prompt", "create", "support_reply", "--idempotent")
 	if got.code != 0 {
@@ -624,7 +625,7 @@ func TestPromptCreateSendsSchemaAndParams(t *testing.T) {
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts", 201,
 		`{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat",
-		  "description":null,"input_schema":[],"default_params":{},"tags":[],"created_at":""}`)
+		  "description":null,"variables":[],"default_params":{},"tags":[],"created_at":""}`)
 
 	schema := filepath.Join(t.TempDir(), "schema.json")
 	if err := os.WriteFile(schema, []byte(`[{"name":"question","type":"string","required":true}]`), 0o600); err != nil {
@@ -633,7 +634,7 @@ func TestPromptCreateSendsSchemaAndParams(t *testing.T) {
 
 	got := h.run("prompt", "create", "support_reply",
 		"--kind", "chat",
-		"--input-schema-file", schema,
+		"--variables-file", schema,
 		"--default-params", `{"temperature":0.5}`,
 		"--tags", "support,ko")
 	if got.code != 0 {
@@ -648,9 +649,9 @@ func TestPromptCreateSendsSchemaAndParams(t *testing.T) {
 	if params["temperature"] != 0.5 {
 		t.Errorf("default_params = %v", params)
 	}
-	fields := body["input_schema"].([]any)
+	fields := body["variables"].([]any)
 	if len(fields) != 1 || fields[0].(map[string]any)["name"] != "question" {
-		t.Errorf("input_schema = %v", fields)
+		t.Errorf("variables = %v", fields)
 	}
 	tags := body["tags"].([]any)
 	if len(tags) != 2 {
@@ -663,7 +664,7 @@ func TestPromptCreateSendsDecisionKind(t *testing.T) {
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts", 201,
 		`{"id":"u1","key":"classify","name":"Classify","kind":"decision",
-		  "description":null,"input_schema":[],"default_params":{},"tags":[],"created_at":""}`)
+		  "description":null,"variables":[],"default_params":{},"tags":[],"created_at":""}`)
 
 	got := h.run("prompt", "create", "classify", "--kind", "decision", "--name", "Classify")
 	if got.code != 0 {
@@ -723,7 +724,7 @@ func TestPromptUpdateSendsOnlyWhatChanged(t *testing.T) {
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply", 200,
 		`{"id":"u1","key":"support_reply","name":"Renamed","kind":"chat","description":null,
-		  "input_schema":[],"default_params":{},"tags":[],"created_at":""}`)
+		  "variables":[],"default_params":{},"tags":[],"created_at":""}`)
 
 	got := h.run("prompt", "update", "support_reply", "--name", "Renamed")
 	if got.code != 0 {
@@ -751,7 +752,7 @@ func TestPromptGetShowsPromptsAndDeployments(t *testing.T) {
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply", 200,
 		`{"id":"u1","key":"support_reply","name":"Support reply","kind":"chat","description":null,
-		  "input_schema":[{"name":"question","type":"string","required":true,"description":null}],
+		  "variables":[{"name":"question","type":"string","required":true,"description":null}],
 		  "default_params":{"temperature":0.5},"tags":[],"created_at":"2026-09-01T10:00:00Z",
 		  "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":[],"created_at":""}],
 		  "deployments":[{"id":"d1","revision":"v2026.09.30-3","environment":"production","provider":"openrouter",
@@ -762,7 +763,7 @@ func TestPromptGetShowsPromptsAndDeployments(t *testing.T) {
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	for _, want := range []string{"support_reply", "question", "v2", "production", "openai/gpt-4o-mini"} {
+	for _, want := range []string{"support_reply", "Variables:", "question", "v2", "production", "openai/gpt-4o-mini"} {
 		if !strings.Contains(got.stdout, want) {
 			t.Errorf("stdout is missing %q:\n%s", want, got.stdout)
 		}
@@ -1493,7 +1494,7 @@ func TestVersionFlag(t *testing.T) {
 	if got.code != 0 {
 		t.Errorf("exit = %d", got.code)
 	}
-	if !strings.Contains(got.stdout, "0.1.0") {
+	if !strings.Contains(got.stdout, meta.Version) {
 		t.Errorf("stdout = %q", got.stdout)
 	}
 }

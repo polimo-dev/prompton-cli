@@ -14,7 +14,7 @@ import (
 // -ldflags "-X <module>/internal/meta.Version=<version>": the tag without its
 // "v" for a release, 0.0.0-main.<sha> for the rolling main build. A plain
 // `go build` keeps the value below.
-var Version = "0.1.0"
+var Version = "0.8.0"
 
 const (
 	// Name is the binary name (env vars use EnvPrefix, not this).
@@ -37,7 +37,7 @@ const (
 )
 
 // Client is the `client` string sent to POST /api/v1/device/code, e.g.
-// "prompton-cli/0.1.0 (darwin/arm64)".
+// "prompton-cli/0.8.0 (darwin/arm64)".
 func Client() string {
 	return fmt.Sprintf("%s-cli/%s (%s/%s)", Name, Version, runtime.GOOS, runtime.GOARCH)
 }

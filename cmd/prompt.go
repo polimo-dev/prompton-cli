@@ -62,11 +62,11 @@ func newPromptListCommand(g *globals) *cobra.Command {
 			for _, prompt := range prompts {
 				rows = append(rows, []string{
 					prompt.Key, prompt.Name, prompt.Kind,
-					output.Dash(variableNames(prompt.InputSchema)),
+					output.Dash(variableNames(prompt.Variables)),
 					output.Dash(output.Compact(prompt.DefaultParams)),
 				})
 			}
-			p.Table([]string{"KEY", "NAME", "KIND", "INPUTS", "DEFAULT PARAMS"}, rows)
+			p.Table([]string{"KEY", "NAME", "KIND", "VARIABLES", "DEFAULT PARAMS"}, rows)
 			return nil
 		},
 	}
@@ -104,11 +104,11 @@ func newPromptGetCommand(g *globals) *cobra.Command {
 				{"Default params", output.Dash(output.Compact(prompt.DefaultParams))},
 			})
 
-			if len(prompt.InputSchema) > 0 {
+			if len(prompt.Variables) > 0 {
 				p.Info("")
-				p.Info("Inputs:")
-				rows := make([][]string, 0, len(prompt.InputSchema))
-				for _, f := range prompt.InputSchema {
+				p.Info("Variables:")
+				rows := make([][]string, 0, len(prompt.Variables))
+				for _, f := range prompt.Variables {
 					rows = append(rows, []string{f.Name, f.Type, output.Bool(f.Required), output.Dash(output.Str(f.Description))})
 				}
 				p.Table([]string{"NAME", "TYPE", "REQUIRED", "DESCRIPTION"}, rows)
@@ -141,12 +141,12 @@ func newPromptGetCommand(g *globals) *cobra.Command {
 
 func newPromptCreateCommand(g *globals) *cobra.Command {
 	var (
-		kind            string
-		name            string
-		description     string
-		inputSchemaFile string
-		defaultParams   string
-		tags            []string
+		kind          string
+		name          string
+		description   string
+		variablesFile string
+		defaultParams string
+		tags          []string
 	)
 
 	cmd := &cobra.Command{
@@ -176,9 +176,13 @@ and cannot be changed later.`,
 			if err != nil {
 				return err
 			}
-			schema, err := g.readInputSchema(inputSchemaFile)
+			schema, err := g.readVariables(variablesFile)
 			if err != nil {
 				return err
+			}
+			var variables *[]api.Variable
+			if cmd.Flags().Changed("variables-file") {
+				variables = &schema
 			}
 
 			key := args[0]
@@ -187,7 +191,7 @@ and cannot be changed later.`,
 				Name:          name,
 				Kind:          kind,
 				Description:   description,
-				InputSchema:   schema,
+				Variables:     variables,
 				DefaultParams: params,
 				Tags:          tags,
 			})
@@ -222,7 +226,7 @@ and cannot be changed later.`,
 	cmd.Flags().StringVar(&kind, "kind", promptKindChat, "prompt kind: chat or decision")
 	cmd.Flags().StringVar(&name, "name", "", "display name (defaults to the key)")
 	cmd.Flags().StringVar(&description, "description", "", "what this call site does")
-	cmd.Flags().StringVar(&inputSchemaFile, "input-schema-file", "", "JSON file declaring input variables (\"-\" for stdin)")
+	cmd.Flags().StringVar(&variablesFile, "variables-file", "", "JSON file declaring input variables (\"-\" for stdin)")
 	cmd.Flags().StringVar(&defaultParams, "default-params", "", "JSON object of default model params")
 	cmd.Flags().StringSliceVar(&tags, "tags", nil, "comma-separated tags")
 	return cmd
@@ -230,17 +234,17 @@ and cannot be changed later.`,
 
 func newPromptUpdateCommand(g *globals) *cobra.Command {
 	var (
-		name            string
-		description     string
-		inputSchemaFile string
-		defaultParams   string
-		tags            []string
+		name          string
+		description   string
+		variablesFile string
+		defaultParams string
+		tags          []string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "update <key>",
 		Short: "Change a prompt's describable fields",
-		Long: `Update only the fields you pass. Input schema and default params are replaced
+		Long: `Update only the fields you pass. Variables and default params are replaced
 wholesale, not merged. The key and kind are the app's contract and cannot
 change — make a new prompt instead.`,
 		Args: exactArgs(1, "<key>"),
@@ -279,18 +283,18 @@ change — make a new prompt instead.`,
 				}
 				req.DefaultParams = &params
 			}
-			if flags.Changed("input-schema-file") {
-				schema, err := g.readInputSchema(inputSchemaFile)
+			if flags.Changed("variables-file") {
+				schema, err := g.readVariables(variablesFile)
 				if err != nil {
 					return err
 				}
 				if schema == nil {
-					schema = []api.InputField{}
+					schema = []api.Variable{}
 				}
-				req.InputSchema = &schema
+				req.Variables = &schema
 			}
 			if req.Empty() {
-				return usagef("nothing to update — pass at least one of --name, --description, --tags, --input-schema-file, --default-params")
+				return usagef("nothing to update — pass at least one of --name, --description, --tags, --variables-file, --default-params")
 			}
 
 			prompt, err := client.UpdatePrompt(cmd.Context(), org, project, args[0], req)
@@ -315,16 +319,16 @@ change — make a new prompt instead.`,
 
 	cmd.Flags().StringVar(&name, "name", "", "display name")
 	cmd.Flags().StringVar(&description, "description", "", "what this call site does")
-	cmd.Flags().StringVar(&inputSchemaFile, "input-schema-file", "", "JSON file declaring input variables (\"-\" for stdin)")
+	cmd.Flags().StringVar(&variablesFile, "variables-file", "", "JSON file declaring input variables (\"-\" for stdin)")
 	cmd.Flags().StringVar(&defaultParams, "default-params", "", "JSON object of default model params (replaces)")
 	cmd.Flags().StringSliceVar(&tags, "tags", nil, "comma-separated tags (replaces)")
 	return cmd
 }
 
-// readInputSchema accepts either a bare array of field objects or an object
-// with an "input_schema" key, so a file copied out of a GET response works
+// readVariables accepts either a bare array of field objects or an object
+// with an "variables" key, so a file copied out of a GET response works
 // without editing.
-func (g *globals) readInputSchema(path string) ([]api.InputField, error) {
+func (g *globals) readVariables(path string) ([]api.Variable, error) {
 	if path == "" {
 		return nil, nil
 	}
@@ -334,29 +338,33 @@ func (g *globals) readInputSchema(path string) ([]api.InputField, error) {
 	}
 	trimmed := strings.TrimSpace(string(raw))
 	if trimmed == "" {
-		return nil, usagef("--input-schema-file %s is empty", path)
+		return nil, usagef("--variables-file %s is empty", path)
 	}
 
 	if trimmed[0] == '[' {
-		var fields []api.InputField
+		var fields []api.Variable
 		if err := json.Unmarshal([]byte(trimmed), &fields); err != nil {
-			return nil, usagef("--input-schema-file %s: %v", path, err)
+			return nil, usagef("--variables-file %s: %v", path, err)
 		}
 		return fields, nil
 	}
 	var wrapper struct {
-		InputSchema []api.InputField `json:"input_schema"`
+		Variables    []api.Variable  `json:"variables"`
+		RetiredField json.RawMessage `json:"input_schema"`
 	}
 	if err := json.Unmarshal([]byte(trimmed), &wrapper); err != nil {
-		return nil, usagef("--input-schema-file %s: %v", path, err)
+		return nil, usagef("--variables-file %s: %v", path, err)
 	}
-	if wrapper.InputSchema == nil {
-		return nil, usagef("--input-schema-file %s must hold a JSON array of fields, or an object with an \"input_schema\" array", path)
+	if wrapper.RetiredField != nil {
+		return nil, usagef("--variables-file %s must use variables", path)
 	}
-	return wrapper.InputSchema, nil
+	if wrapper.Variables == nil {
+		return nil, usagef("--variables-file %s must hold a JSON array of fields, or an object with an \"variables\" array", path)
+	}
+	return wrapper.Variables, nil
 }
 
-func variableNames(fields []api.InputField) string {
+func variableNames(fields []api.Variable) string {
 	if len(fields) == 0 {
 		return ""
 	}

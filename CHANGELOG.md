@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0 — 2026-10-14
+
+- Prompt variable definitions use `variables` throughout CLI requests and responses.
+- Create and update prompts with `--variables-file`; the previous flag and wrapper field are no longer accepted.
+- Use this release with the current schema-1 PromptOn server and SDK 0.8.0.
+
 ## 0.7.0
 
 - Use readable resource references throughout CLI output: organization/project slugs, prompt keys, provider/model pairs, prompt version numbers, and deployment revisions.
