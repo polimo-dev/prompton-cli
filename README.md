@@ -29,31 +29,33 @@ request fields documented below.
 ## Install
 
 ```sh
-curl -fsSL https://prompton.ai/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.6.0/install.sh | PTN_VERSION=v0.6.0 sh
 ```
 
-`prompton.ai/install.sh` redirects to [`install.sh`](install.sh) on this
-repository's `main` branch, so the two are always the same script. It detects
-your OS and architecture, downloads the matching release archive, **verifies
-its SHA-256 against the release checksums**, and installs to `/usr/local/bin`
-when that is writable or `~/.local/bin` otherwise. Override either choice:
+This pins both the installer source and the release to the current stable CLI,
+`v0.6.0`. The script detects your OS and architecture, downloads the matching
+release archive, **verifies its SHA-256 against the release checksums**, and
+installs to `/usr/local/bin` when that is writable or `~/.local/bin` otherwise.
+Override the install directory when needed:
 
 ```sh
-PTN_VERSION=v0.1.0 PTN_INSTALL_DIR="$HOME/bin" \
-  sh -c "$(curl -fsSL https://prompton.ai/install.sh)"
+curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.6.0/install.sh | \
+  PTN_VERSION=v0.6.0 PTN_INSTALL_DIR="$HOME/bin" sh
 ```
 
-Until the first tagged release, `install.sh` installs the rolling `main`
-build — the [`main-latest`](https://github.com/polimo-dev/prompton-cli/releases/tag/main-latest)
-pre-release, rebuilt on every push to `main` — and prints a line saying so;
-pin with `PTN_VERSION=v0.1.0` later. `PTN_VERSION=main` asks for the rolling
-build explicitly at any time.
+When `PTN_VERSION` is omitted, `install.sh` resolves the latest stable GitHub
+release. `PTN_VERSION=main` asks for the rolling
+[`main-latest`](https://github.com/polimo-dev/prompton-cli/releases/tag/main-latest)
+pre-release, rebuilt on every push to `main`.
 
-Other ways in:
+Source build route:
 
 ```sh
-brew install polimo-dev/tap/prompton                  # Homebrew adds the tap itself
-go install github.com/polimo-dev/prompton-cli@latest  # from source; reports the compiled-in version
+git clone --branch v0.6.0 --depth 1 https://github.com/polimo-dev/prompton-cli.git
+cd prompton-cli
+make build
+mkdir -p "$HOME/bin"
+install -m 0755 ./prompton "$HOME/bin/prompton"
 ```
 
 Release archives — macOS and Linux on amd64 and arm64, Windows on amd64 — are
@@ -65,12 +67,12 @@ put `prompton` on your `PATH`.
 ### Uninstall
 
 ```sh
-curl -fsSL https://prompton.ai/uninstall.sh | sh
+curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.6.0/uninstall.sh | sh
 ```
 
 Signs the CLI out (revoking the session token on the server), removes the `prompton` binary
 install.sh put in place, and deletes `~/.config/prompton`. Set `PTN_KEEP_CONFIG=1` to keep the
-configuration directory. Homebrew installs: `brew uninstall prompton`.
+configuration directory.
 
 ## Signing in
 
@@ -193,8 +195,13 @@ Conversation history is not committed as a PromptOn message slot; compose it in
 your app when you send the final provider request. The server validates the
 contract; deployed tool prompts require SDK 0.4.0 or newer.
 
-Decision prompts are committed from a JSON object with `kind: "decision"` and a
-`decision` object:
+Create Decision prompts with `--kind decision`, then commit a JSON object with
+`kind: "decision"` and a `decision` object:
+
+```sh
+prompton prompt create triage_ticket --kind decision
+prompton prompt commit triage_ticket --file decision.json
+```
 
 ```json
 {
@@ -526,13 +533,14 @@ Every push to `main` also runs
 GoReleaser snapshot build — the same archives and `checksums.txt` a release
 gets, with the version stamped as `0.0.0-main.<sha>` — published to the
 rolling `main-latest` pre-release, "main (rolling)". The tag is force-moved
-and the release updated in place, so `install.sh` has something to install
-before the first release and `PTN_VERSION=main` always has the newest build.
+and the release updated in place, so `PTN_VERSION=main` always has the newest
+build.
 
-Releases are cut by tagging: `git tag v0.1.0 && git push --tags`. The tag
-triggers [`.github/workflows/release.yml`](.github/workflows/release.yml),
-which runs GoReleaser to build the archives, publish the GitHub release, and
-update the Homebrew tap.
+Releases are cut by tagging a new, unused stable version such as
+`git tag v0.6.1 && git push origin v0.6.1`. Never move or recreate an existing
+stable tag; publish a new version instead. The tag triggers
+[`.github/workflows/release.yml`](.github/workflows/release.yml), which runs
+GoReleaser to build the archives and publish the GitHub release.
 
 ## Contributing
 

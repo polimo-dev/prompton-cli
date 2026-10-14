@@ -2,7 +2,7 @@
 #
 #   goreleaser check                 validate this file
 #   goreleaser release --snapshot --clean   build locally without publishing
-#   git tag v0.1.0 && git push --tags       cut a real release (CI runs goreleaser)
+#   git tag vX.Y.Z && git push origin vX.Y.Z   cut a new release; never move stable tags
 version: 2
 
 project_name: prompton
@@ -87,18 +87,17 @@ release:
     ## Install
 
     ```sh
-    curl -fsSL https://prompton.ai/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/{{ .Tag }}/install.sh | PTN_VERSION={{ .Tag }} sh
     ```
 
-    or `brew install polimo-dev/tap/prompton`.
+    Archives and checksums are attached to this GitHub release.
 
 homebrew_casks:
-  # Publishes the cask to github.com/polimo-dev/homebrew-tap so that
-  # `brew install polimo-dev/tap/prompton` works. The tap repository must exist
-  # before the first tag, and the release workflow needs HOMEBREW_TAP_TOKEN — a
-  # token with write access to that repository (the default GITHUB_TOKEN cannot
-  # push to another repo). Without the token the release still succeeds and
-  # only the cask upload is skipped.
+  # Optional future cask publication to github.com/polimo-dev/homebrew-tap.
+  # The release workflow needs HOMEBREW_TAP_TOKEN — a token with write access
+  # to that repository (the default GITHUB_TOKEN cannot push to another repo).
+  # Without the token the release still succeeds and only the cask upload is
+  # skipped.
   - name: prompton
     ids:
       - prompton

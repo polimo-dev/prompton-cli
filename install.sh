@@ -2,18 +2,17 @@
 #
 # Install the PromptOn CLI.
 #
-#   curl -fsSL https://prompton.ai/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.6.0/install.sh | PTN_VERSION=v0.6.0 sh
 #
-# prompton.ai/install.sh redirects to this file on the repository's main
-# branch, so the two are always the same script:
+# Pin both the installer source and PTN_VERSION for a stable install. Use the
+# main branch installer only when you intentionally want the latest script:
 #
 #   https://raw.githubusercontent.com/polimo-dev/prompton-cli/main/install.sh
 #
 # Environment:
-#   PTN_VERSION       release to install: a tag such as v0.1.0 (0.1.0 works
+#   PTN_VERSION       release to install: a tag such as v0.6.0 (0.6.0 works
 #                     too), or "main" for the rolling build of the main
-#                     branch. Default: the latest stable release; while there
-#                     is none yet, the rolling main build.
+#                     branch. Default: the latest stable release.
 #   PTN_INSTALL_DIR   where to put the binary (default: /usr/local/bin,
 #                     falling back to ~/.local/bin when that is not writable)
 #   GITHUB_TOKEN      optional; sent to the GitHub API so shared CI runners do

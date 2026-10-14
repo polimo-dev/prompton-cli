@@ -85,11 +85,12 @@ jobs:
             Install this build:
 
             ```sh
-            PTN_VERSION=main sh -c "$(curl -fsSL https://prompton.ai/install.sh)"
+            curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/main-latest/install.sh | PTN_VERSION=main sh
             ```
 
-            Until the first tagged release, `curl -fsSL https://prompton.ai/install.sh | sh`
-            installs this build as well.
+            When `PTN_VERSION` is omitted, `install.sh` resolves the latest
+            stable GitHub release. `PTN_VERSION=main` asks for this rolling
+            `main-latest` pre-release explicitly.
           files: |
             dist/*.tar.gz
             dist/*.zip
