@@ -164,14 +164,14 @@ func orgRow(o api.Org) []string {
 	if o.Personal {
 		kind = "personal"
 	}
-	return []string{o.Ref(), o.Name, kind, o.ID}
+	return []string{o.Ref(), o.Name, kind}
 }
 
 // toConfigOrgs converts API orgs into their stored form.
 func toConfigOrgs(orgs []api.Org) []config.Org {
 	out := make([]config.Org, 0, len(orgs))
 	for _, o := range orgs {
-		out = append(out, config.Org{ID: o.ID, Name: o.Name, Slug: o.Slug, Personal: o.Personal})
+		out = append(out, config.Org{Name: o.Name, Slug: o.Slug, Personal: o.Personal})
 	}
 	return out
 }

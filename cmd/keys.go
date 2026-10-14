@@ -74,7 +74,6 @@ the app names the environment in each request.`,
 				{"Name", key.Name},
 				{"Scopes", output.Join(key.Scopes)},
 				{"Key", key.Key},
-				{"Id", key.ID},
 			})
 			p.Info("")
 			p.Info("This is the only time the key is shown. Store it now.")

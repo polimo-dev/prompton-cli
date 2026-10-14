@@ -102,7 +102,6 @@ organization.`,
 					{"Description", output.Dash(project.Description)},
 					{"Timezone", project.Timezone},
 					{"Environments", environmentList(project.Environments)},
-					{"Id", project.ID},
 				})
 			}
 			if wasExisting {

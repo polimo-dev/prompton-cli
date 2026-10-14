@@ -48,11 +48,11 @@ func newModelsListCommand(g *globals) *cobra.Command {
 			rows := make([][]string, 0, len(models))
 			for _, m := range models {
 				rows = append(rows, []string{
-					m.ModelID, output.Dash(m.DisplayName), m.Provider,
-					pricingCell(m.Pricing), m.Status, m.ID,
+					m.Model, output.Dash(m.DisplayName), m.Provider,
+					pricingCell(m.Pricing), m.Status,
 				})
 			}
-			p.Table([]string{"MODEL", "DISPLAY NAME", "PROVIDER", "PRICE /M", "STATUS", "CATALOG ID"}, rows)
+			p.Table([]string{"MODEL", "DISPLAY NAME", "PROVIDER", "PRICE /M", "STATUS"}, rows)
 			return nil
 		},
 	}
@@ -115,13 +115,12 @@ Deployments use the same provider and model strings.`,
 				}
 			} else {
 				p.Fields([][2]string{
-					{"Model", model.ModelID},
+					{"Model", model.Model},
 					{"Display name", output.Dash(model.DisplayName)},
 					{"Provider", model.Provider},
 					{"Price /M", pricingCell(model.Pricing)},
 					{"Context", output.Int(model.ContextLength)},
 					{"Capabilities", output.Dash(output.Join(model.Capabilities))},
-					{"Catalog id", model.ID},
 				})
 			}
 			if wasExisting {

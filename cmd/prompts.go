@@ -83,7 +83,6 @@ Pass "-" as the file to read stdin.`,
 				{"Engine", version.Engine},
 				{"Variables", output.Dash(output.Join(version.DetectedVariables))},
 				{"Message", output.Dash(output.Str(version.Message))},
-				{"Id", version.ID},
 			})
 			return nil
 		},

@@ -102,7 +102,6 @@ func newPromptGetCommand(g *globals) *cobra.Command {
 				{"Description", output.Dash(output.Str(prompt.Description))},
 				{"Tags", output.Dash(output.Join(prompt.Tags))},
 				{"Default params", output.Dash(output.Compact(prompt.DefaultParams))},
-				{"Id", prompt.ID},
 			})
 
 			if len(prompt.InputSchema) > 0 {
@@ -211,7 +210,6 @@ and cannot be changed later.`,
 					{"Key", prompt.Key},
 					{"Name", prompt.Name},
 					{"Kind", prompt.Kind},
-					{"Id", prompt.ID},
 				})
 			}
 			if wasExisting {

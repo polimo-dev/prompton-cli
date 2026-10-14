@@ -85,7 +85,6 @@ func newWhoamiCommand(g *globals) *cobra.Command {
 			p.Fields([][2]string{
 				{"Host", cfg.Host},
 				{"User", displayUser(me.User)},
-				{"User id", me.User.ID},
 				{"Org", output.Dash(cfg.Org)},
 				{"Project", output.Dash(cfg.Project)},
 			})
@@ -96,7 +95,7 @@ func newWhoamiCommand(g *globals) *cobra.Command {
 				for _, o := range me.Orgs {
 					rows = append(rows, orgRow(o))
 				}
-				p.Table([]string{"REF", "NAME", "KIND", "ID"}, rows)
+				p.Table([]string{"REF", "NAME", "KIND"}, rows)
 			}
 			return nil
 		},
@@ -131,7 +130,7 @@ func newOrgsCommand(g *globals) *cobra.Command {
 			for _, o := range orgs {
 				rows = append(rows, orgRow(o))
 			}
-			p.Table([]string{"REF", "NAME", "KIND", "ID"}, rows)
+			p.Table([]string{"REF", "NAME", "KIND"}, rows)
 			return nil
 		},
 	})

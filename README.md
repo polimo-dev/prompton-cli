@@ -22,25 +22,31 @@ Readable provider/model, prompt version, deployment revision, promotion, and
 Decision prompt commands require the PromptOn readable-resource server contract.
 Older servers may accept a raw model string as an OpenRouter model while
 ignoring `--provider`; use this CLI with a server that supports the readable
-request fields documented below.
+request fields documented below. Version 0.7.0 also uses readable response references:
+organization and project slugs, prompt keys, provider/model pairs, prompt version
+numbers, and deployment revisions. JSON output and saved identity metadata omit
+private resource IDs. Existing configuration files still load; select organizations
+by slug, name, or `personal`. SDK key metadata uses its name and prefix.
+
+See [CHANGELOG.md](CHANGELOG.md) for the 0.7.0 GitHub source release notes.
 
 ---
 
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.6.0/install.sh | PTN_VERSION=v0.6.0 sh
+curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.7.0/install.sh | PTN_VERSION=v0.7.0 sh
 ```
 
 This pins both the installer source and the release to the current stable CLI,
-`v0.6.0`. The script detects your OS and architecture, downloads the matching
+`v0.7.0`. The script detects your OS and architecture, downloads the matching
 release archive, **verifies its SHA-256 against the release checksums**, and
 installs to `/usr/local/bin` when that is writable or `~/.local/bin` otherwise.
 Override the install directory when needed:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.6.0/install.sh | \
-  PTN_VERSION=v0.6.0 PTN_INSTALL_DIR="$HOME/bin" sh
+curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.7.0/install.sh | \
+  PTN_VERSION=v0.7.0 PTN_INSTALL_DIR="$HOME/bin" sh
 ```
 
 When `PTN_VERSION` is omitted, `install.sh` resolves the latest stable GitHub
@@ -51,7 +57,7 @@ pre-release, rebuilt on every push to `main`.
 Source build route:
 
 ```sh
-git clone --branch v0.6.0 --depth 1 https://github.com/polimo-dev/prompton-cli.git
+git clone --branch v0.7.0 --depth 1 https://github.com/polimo-dev/prompton-cli.git
 cd prompton-cli
 make build
 mkdir -p "$HOME/bin"
@@ -67,7 +73,7 @@ put `prompton` on your `PATH`.
 ### Uninstall
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.6.0/uninstall.sh | sh
+curl -fsSL https://raw.githubusercontent.com/polimo-dev/prompton-cli/v0.7.0/uninstall.sh | sh
 ```
 
 Signs the CLI out (revoking the session token on the server), removes the `prompton` binary
@@ -468,10 +474,10 @@ because it holds a token. `$XDG_CONFIG_HOME` is honoured when set.
 {
   "host": "https://app.prompton.ai",
   "token": "…",
-  "user": {"id": "0192…", "email": "ada@example.com"},
+  "user": {"email": "ada@example.com"},
   "organizations": [
-    {"id": "0192…", "name": "Ada", "personal": true},
-    {"id": "0192…", "name": "Acme", "slug": "acme", "personal": false}
+    {"name": "Ada", "personal": true},
+    {"name": "Acme", "slug": "acme", "personal": false}
   ],
   "org": "acme",
   "project": "helpdesk"
@@ -537,7 +543,7 @@ and the release updated in place, so `PTN_VERSION=main` always has the newest
 build.
 
 Releases are cut by tagging a new, unused stable version such as
-`git tag v0.6.1 && git push origin v0.6.1`. Never move or recreate an existing
+`git tag v0.7.1 && git push origin v0.7.1`. Never move or recreate an existing
 stable tag; publish a new version instead. The tag triggers
 [`.github/workflows/release.yml`](.github/workflows/release.yml), which runs
 GoReleaser to build the archives and publish the GitHub release.

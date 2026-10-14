@@ -237,7 +237,7 @@ func TestMe(t *testing.T) {
 	if c.Auth != "Bearer tok" {
 		t.Errorf("Authorization = %q", c.Auth)
 	}
-	if got.User.ID != "u1" || len(got.Orgs) != 1 {
+	if got.User.Email != "ada@example.com" || len(got.Orgs) != 1 {
 		t.Errorf("Me = %+v", got)
 	}
 }
@@ -332,8 +332,8 @@ func TestCreateProject(t *testing.T) {
 	if body["key"] != "helpdesk" || body["description"] != "Customer support app" || body["timezone"] != "Etc/UTC" {
 		t.Errorf("request body = %v", body)
 	}
-	if got.ID != "0192p" {
-		t.Errorf("project id = %q", got.ID)
+	if got.Slug != "helpdesk" {
+		t.Errorf("project slug = %q", got.Slug)
 	}
 }
 
@@ -511,7 +511,7 @@ func TestCommitVersionChat(t *testing.T) {
 
 // ---- models ---------------------------------------------------------------
 
-const modelJSON = `{"id":"0192m","provider":"openrouter","model_id":"openai/gpt-4o-mini",
+const modelJSON = `{"id":"0192m","provider":"openrouter","model":"openai/gpt-4o-mini",
   "display_name":"GPT-4o-mini","metadata":{},"provider_options":{"only":["OpenAI"]},
   "pricing":{"input_per_m":0.15,"output_per_m":0.6,"currency":"USD","unit":"token"},
   "context_length":128000,"capabilities":["tools","streaming"],"status":"active",
@@ -528,7 +528,7 @@ func TestListModels(t *testing.T) {
 		t.Fatalf("models = %+v", got)
 	}
 	m := got[0]
-	if m.ID != "0192m" || m.ModelID != "openai/gpt-4o-mini" {
+	if m.Provider != "openrouter" || m.Model != "openai/gpt-4o-mini" {
 		t.Errorf("the response identity and provider model must not be confused: %+v", m)
 	}
 	if m.Pricing == nil || m.Pricing.InputPerM != 0.15 || m.Pricing.OutputPerM != 0.6 {
@@ -577,7 +577,7 @@ func TestListDeploymentsLive(t *testing.T) {
 	if len(got) != 1 || got[0].Revision != "v2026.09.30-3" || got[0].PromptVersion != 2 {
 		t.Errorf("deployments = %+v", got)
 	}
-	if got[0].ModelID != "m1" || got[0].TemplatePins["default"] != "v2" {
+	if got[0].Model != "openai/gpt-4o-mini" || got[0].PromptVersion != 2 {
 		t.Errorf("deployment response fields = %+v", got[0])
 	}
 }

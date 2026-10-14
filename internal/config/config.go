@@ -25,14 +25,12 @@ const PersonalOrg = "personal"
 
 // User is the identity attached to the stored token.
 type User struct {
-	ID    string `json:"id"`
 	Email string `json:"email"`
 	Name  string `json:"name,omitempty"`
 }
 
 // Org is one organization the user belongs to.
 type Org struct {
-	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Slug     string `json:"slug,omitempty"`
 	Personal bool   `json:"personal"`
@@ -187,12 +185,11 @@ func Cleared(f File) File {
 	return File{Host: f.Host}
 }
 
-// FindOrg looks up a stored org by slug, by the literal "personal", by name,
-// or by id.
+// FindOrg looks up a stored org by slug, by the literal "personal", or by name.
 func FindOrg(orgs []Org, ref string) (Org, bool) {
 	want := normalizeOrg(ref)
 	for _, o := range orgs {
-		if o.Ref() == want || o.ID == ref {
+		if o.Ref() == want {
 			return o, true
 		}
 	}

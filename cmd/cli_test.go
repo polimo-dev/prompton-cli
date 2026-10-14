@@ -321,7 +321,7 @@ func TestLoginExpiredExitsOne(t *testing.T) {
 
 func TestLogoutRevokesThenClears(t *testing.T) {
 	h := newHarness(t)
-	h.login(config.File{Org: "personal", Project: "helpdesk", User: &config.User{ID: "u1"}})
+	h.login(config.File{Org: "personal", Project: "helpdesk", User: &config.User{}})
 	h.handle("/api/v1/sessions/revoke", 204, ``)
 
 	got := h.run("logout")
@@ -596,7 +596,7 @@ func TestConflictWithIdempotentAndJSONPrintsTheResource(t *testing.T) {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	payload := got.json(t)
-	if payload["slug"] != "helpdesk" || payload["id"] != "p1" {
+	if payload["slug"] != "helpdesk" || payload["id"] != nil {
 		t.Errorf("payload = %v, want the existing project, ready to be piped onward", payload)
 	}
 }
@@ -969,7 +969,7 @@ func TestModelsRegister(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/models", 201,
-		`{"id":"m1","provider":"openrouter","model_id":"google/gemini-3.8-flash",
+		`{"id":"m1","provider":"openrouter","model":"google/gemini-3.8-flash",
 		  "display_name":"GPT-4o-mini","metadata":{},"provider_options":{},
 		  "pricing":{"input_per_m":0.15,"output_per_m":0.6,"currency":"USD","unit":"token"},
 		  "context_length":128000,"capabilities":["tools"],"status":"active","created_at":""}`)
@@ -982,16 +982,16 @@ func TestModelsRegister(t *testing.T) {
 	if len(body) != 2 || body["provider"] != "openrouter" || body["model"] != "google/gemini-3.8-flash" {
 		t.Errorf("body = %v, want provider and model so the server can enrich it", body)
 	}
-	if !strings.Contains(got.stdout, "m1") {
-		t.Errorf("stdout = %q, want the catalog id a deployment will pin", got.stdout)
+	if !strings.Contains(got.stdout, "google/gemini-3.8-flash") || strings.Contains(got.stdout, "Catalog id") {
+		t.Errorf("stdout = %q, want a readable model without a catalog id", got.stdout)
 	}
 }
 
-func TestModelsRegisterJSONPreservesModelIDResponse(t *testing.T) {
+func TestModelsRegisterJSONPreservesReadableModelResponse(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/models", 201,
-		`{"id":"m1","provider":"openrouter","model_id":"google/gemini-3.8-flash",
+		`{"id":"m1","provider":"openrouter","model":"google/gemini-3.8-flash",
 		  "display_name":"Gemini Flash","metadata":{},"provider_options":{},"pricing":null,
 		  "context_length":0,"capabilities":[],"status":"active","created_at":""}`)
 
@@ -1000,11 +1000,11 @@ func TestModelsRegisterJSONPreservesModelIDResponse(t *testing.T) {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	payload := got.json(t)
-	if payload["model_id"] != "google/gemini-3.8-flash" {
-		t.Errorf("payload = %v, want server response provider name under model_id", payload)
+	if payload["model"] != "google/gemini-3.8-flash" {
+		t.Errorf("payload = %v, want server response provider name under model", payload)
 	}
-	if _, ok := payload["model"]; ok {
-		t.Errorf("payload = %v, must not invent a model response alias", payload)
+	if _, ok := payload["model_id"]; ok {
+		t.Errorf("payload = %v, must not expose the retired model_id field", payload)
 	}
 }
 
@@ -1024,7 +1024,7 @@ func TestModelsListJSON(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/models", 200,
-		`{"models":[{"id":"m1","provider":"openrouter","model_id":"openai/gpt-4o-mini",
+		`{"models":[{"id":"m1","provider":"openrouter","model":"openai/gpt-4o-mini",
 		  "display_name":"GPT-4o-mini","metadata":{},"provider_options":{},"pricing":null,
 		  "context_length":0,"capabilities":[],"status":"active","created_at":""}]}`)
 
@@ -1037,11 +1037,11 @@ func TestModelsListJSON(t *testing.T) {
 		t.Fatalf("models = %v", models)
 	}
 	first := models[0].(map[string]any)
-	if first["model_id"] != "openai/gpt-4o-mini" {
-		t.Errorf("model payload = %v, want provider name in model_id", first)
+	if first["model"] != "openai/gpt-4o-mini" {
+		t.Errorf("model payload = %v, want provider name in model", first)
 	}
-	if _, ok := first["model"]; ok {
-		t.Errorf("model payload = %v, must not invent a model response alias", first)
+	if _, ok := first["model_id"]; ok {
+		t.Errorf("model payload = %v, must not expose the retired model_id field", first)
 	}
 }
 
@@ -1184,12 +1184,11 @@ func TestDeployJSON(t *testing.T) {
 	if payload["revision"] != "v2026.09.30-4" {
 		t.Errorf("payload = %v", payload)
 	}
-	if payload["model_id"] != "m1" || payload["model"] != "google/gemini-3.8-flash" {
-		t.Errorf("payload = %v, want response identities and provider model preserved", payload)
+	if payload["model_id"] != nil || payload["model"] != "google/gemini-3.8-flash" {
+		t.Errorf("payload = %v, want readable provider model without private identity", payload)
 	}
-	pins, ok := payload["template_pins"].(map[string]any)
-	if !ok || pins["default"] != "v2" {
-		t.Errorf("template_pins = %v, want response pins preserved", payload["template_pins"])
+	if _, ok := payload["template_pins"]; ok {
+		t.Errorf("private template pins leaked: %v", payload["template_pins"])
 	}
 	if payload["prompt_version_number"] != float64(2) || payload["provider"] != "openrouter" {
 		t.Errorf("payload = %v, want readable response pins preserved", payload)

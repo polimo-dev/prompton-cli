@@ -6,7 +6,6 @@ import "encoding/json"
 
 // User is the authenticated human behind the CLI session token.
 type User struct {
-	ID    string `json:"id"`
 	Email string `json:"email"`
 	Name  string `json:"name,omitempty"`
 }
@@ -14,7 +13,6 @@ type User struct {
 // Org is one organization the user belongs to. A personal org has no slug and
 // is addressed in paths by the literal "personal".
 type Org struct {
-	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Slug      string `json:"slug,omitempty"`
 	Personal  bool   `json:"personal"`
@@ -65,7 +63,6 @@ type DeviceToken struct {
 
 // Environment is one deploy target inside a project.
 type Environment struct {
-	ID        string `json:"id"`
 	Slug      string `json:"slug"`
 	Name      string `json:"name"`
 	Protected bool   `json:"protected"`
@@ -73,7 +70,6 @@ type Environment struct {
 
 // Project is one project inside an org.
 type Project struct {
-	ID           string        `json:"id"`
 	Slug         string        `json:"slug"`
 	Description  string        `json:"description"`
 	Timezone     string        `json:"timezone"`
@@ -102,7 +98,6 @@ type InputField struct {
 // Prompt is one call site. GET of a single prompt also carries recent versions
 // and live deployments.
 type Prompt struct {
-	ID            string         `json:"id"`
 	Key           string         `json:"key"`
 	Name          string         `json:"name"`
 	Description   *string        `json:"description"`
@@ -113,7 +108,7 @@ type Prompt struct {
 	CreatedAt     string         `json:"created_at"`
 
 	Versions        []VersionSummary `json:"versions,omitempty"`
-	PromptTemplates []PromptTemplate `json:"prompt_templates,omitempty"`
+	PromptTemplates []PromptTemplate `json:"templates,omitempty"`
 	Deployments     []Deployment     `json:"deployments,omitempty"`
 }
 
@@ -159,17 +154,14 @@ func (r UpdatePromptRequest) Empty() bool {
 
 // VersionSummary is one immutable prompt version as it appears in a listing.
 type VersionSummary struct {
-	ID                string   `json:"id"`
 	Number            int      `json:"number"`
 	Message           *string  `json:"message"`
 	DetectedVariables []string `json:"detected_variables"`
 	CreatedAt         string   `json:"created_at"`
 }
 
-// PromptTemplate is the internal template storage behind a prompt. It is kept
-// only so the CLI can read compatibility payloads during the migration.
+// PromptTemplate carries the version summaries for a prompt's default template.
 type PromptTemplate struct {
-	ID           string           `json:"id"`
 	Name         string           `json:"name"`
 	Description  *string          `json:"description"`
 	CreatedAt    string           `json:"created_at"`
@@ -223,8 +215,6 @@ type CommitVersionRequest struct {
 
 // PromptVersion is the full committed version.
 type PromptVersion struct {
-	ID                string          `json:"id"`
-	PromptTemplateID  string          `json:"prompt_template_id"`
 	Number            int             `json:"number"`
 	Kind              string          `json:"kind,omitempty"`
 	Engine            string          `json:"engine"`
@@ -248,12 +238,10 @@ type Pricing struct {
 	Unit       string  `json:"unit"`
 }
 
-// Model is one catalog entry. ID is a server response identity; ModelID is the
-// provider-side model name returned by the existing server response contract.
+// Model is identified by its provider and provider-native model name.
 type Model struct {
-	ID              string         `json:"id"`
+	Model           string         `json:"model"`
 	Provider        string         `json:"provider"`
-	ModelID         string         `json:"model_id"`
 	DisplayName     string         `json:"display_name"`
 	Metadata        map[string]any `json:"metadata"`
 	ProviderOptions map[string]any `json:"provider_options"`
@@ -281,19 +269,19 @@ type RegisterModelRequest struct {
 // ---- deployments ----------------------------------------------------------
 
 // Deployment is one immutable revision: a model, its params, and the pinned
-// prompt version. ID is a server response identity.
+// prompt version. Revisions and sequence counters are readable scoped references.
 type Deployment struct {
-	ID              string            `json:"id"`
-	Revision        string            `json:"revision"`
-	Environment     string            `json:"environment"`
-	ModelID         string            `json:"model_id,omitempty"`
-	Provider        string            `json:"provider"`
-	Model           string            `json:"model"`
-	PromptVersion   int               `json:"prompt_version_number,omitempty"`
-	TemplatePins    map[string]string `json:"template_pins,omitempty"`
-	Params          map[string]any    `json:"params"`
-	ProviderOptions map[string]any    `json:"provider_options"`
-	CreatedAt       string            `json:"created_at"`
+	Sequence        int            `json:"sequence"`
+	API             string         `json:"api,omitempty"`
+	RequestPath     string         `json:"request_path,omitempty"`
+	Revision        string         `json:"revision"`
+	Environment     string         `json:"environment"`
+	Provider        string         `json:"provider"`
+	Model           string         `json:"model"`
+	PromptVersion   int            `json:"prompt_version_number,omitempty"`
+	Params          map[string]any `json:"params"`
+	ProviderOptions map[string]any `json:"provider_options"`
+	CreatedAt       string         `json:"created_at"`
 }
 
 // CreateDeploymentRequest commits a new revision with readable resource
@@ -326,7 +314,6 @@ type RollbackRequest struct {
 // APIKey is a project-scoped SDK key. Key (the raw secret) is populated
 // only in the response that creates it.
 type APIKey struct {
-	ID         string   `json:"id"`
 	Name       string   `json:"name"`
 	KeyPrefix  string   `json:"key_prefix"`
 	Scopes     []string `json:"scopes"`
@@ -345,7 +332,6 @@ type IssueAPIKeyRequest struct {
 // back; only a masked hint does.
 type ProviderKey struct {
 	Connected  bool    `json:"connected"`
-	ID         string  `json:"id,omitempty"`
 	Provider   string  `json:"provider"`
 	Label      string  `json:"label,omitempty"`
 	Hint       string  `json:"hint,omitempty"`

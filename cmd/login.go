@@ -66,7 +66,7 @@ revokes it server-side.`,
 			file := cfg.File
 			file.Host = cfg.Host
 			file.Token = token.Token
-			file.User = &config.User{ID: token.User.ID, Email: token.User.Email, Name: token.User.Name}
+			file.User = &config.User{Email: token.User.Email, Name: token.User.Name}
 			file.Orgs = toConfigOrgs(token.Orgs)
 
 			chosen, err := g.chooseOrg(token.Orgs, file.Org)
@@ -178,5 +178,5 @@ func displayUser(u api.User) string {
 	if u.Name != "" {
 		return u.Name
 	}
-	return u.ID
+	return "signed-in user"
 }
