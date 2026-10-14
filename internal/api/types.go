@@ -210,9 +210,11 @@ func (m Message) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields(m))
 }
 
-// CommitVersionRequest commits an immutable chat prompt version.
+// CommitVersionRequest commits an immutable prompt version.
 type CommitVersionRequest struct {
+	Kind     string          `json:"kind,omitempty"`
 	Messages []Message       `json:"messages,omitempty"`
+	Decision json.RawMessage `json:"decision,omitempty"`
 	Engine   string          `json:"engine,omitempty"`
 	Message  string          `json:"message,omitempty"`
 	Tools    json.RawMessage `json:"tools,omitempty"`
@@ -224,8 +226,10 @@ type PromptVersion struct {
 	ID                string          `json:"id"`
 	PromptTemplateID  string          `json:"prompt_template_id"`
 	Number            int             `json:"number"`
+	Kind              string          `json:"kind,omitempty"`
 	Engine            string          `json:"engine"`
 	Messages          []Message       `json:"messages"`
+	Decision          json.RawMessage `json:"decision,omitempty"`
 	Tools             json.RawMessage `json:"tools,omitempty"`
 	TextTemplate      *string         `json:"text_template"`
 	DetectedVariables []string        `json:"detected_variables"`
@@ -244,9 +248,8 @@ type Pricing struct {
 	Unit       string  `json:"unit"`
 }
 
-// Model is one catalog entry. Note the two meanings of "model id": Model.ID is
-// the catalog UUID a deployment pins, Model.ModelID is the provider-side
-// string ("openai/gpt-4o-mini").
+// Model is one catalog entry. ID is a server response identity; ModelID is the
+// provider-side model name returned by the existing server response contract.
 type Model struct {
 	ID              string         `json:"id"`
 	Provider        string         `json:"provider"`
@@ -261,11 +264,11 @@ type Model struct {
 	CreatedAt       string         `json:"created_at"`
 }
 
-// RegisterModelRequest is the body of POST /models. Only ModelID is required;
+// RegisterModelRequest is the body of POST /models. Only Model is required;
 // the server fills the rest from OpenRouter's public catalog when it can.
 type RegisterModelRequest struct {
 	Provider        string         `json:"provider,omitempty"`
-	ModelID         string         `json:"model_id"`
+	Model           string         `json:"model"`
 	DisplayName     string         `json:"display_name,omitempty"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
 	ProviderOptions map[string]any `json:"provider_options,omitempty"`
@@ -278,30 +281,38 @@ type RegisterModelRequest struct {
 // ---- deployments ----------------------------------------------------------
 
 // Deployment is one immutable revision: a model, its params, and the pinned
-// prompt version. TemplatePins is retained for default-only wire compatibility.
+// prompt version. ID is a server response identity.
 type Deployment struct {
 	ID              string            `json:"id"`
 	Revision        string            `json:"revision"`
 	Environment     string            `json:"environment"`
-	ModelID         string            `json:"model_id"`
+	ModelID         string            `json:"model_id,omitempty"`
+	Provider        string            `json:"provider"`
 	Model           string            `json:"model"`
+	PromptVersion   int               `json:"prompt_version_number,omitempty"`
+	TemplatePins    map[string]string `json:"template_pins,omitempty"`
 	Params          map[string]any    `json:"params"`
 	ProviderOptions map[string]any    `json:"provider_options"`
-	TemplatePins    map[string]string `json:"template_pins"`
 	CreatedAt       string            `json:"created_at"`
 }
 
-// CreateDeploymentRequest commits a new revision. Exactly one of ModelID (a
-// catalog UUID) or Model (a provider string, registered on the fly) is
-// required; when both are sent ModelID wins. PromptVersionID pins a specific
-// prompt version; omitting it asks the server to pin the latest committed one.
+// CreateDeploymentRequest commits a new revision with readable resource
+// references. Omitting PromptVersion asks the server to pin the latest
+// committed compatible version.
 type CreateDeploymentRequest struct {
 	Environment     string         `json:"environment,omitempty"`
-	ModelID         string         `json:"model_id,omitempty"`
+	Provider        string         `json:"provider,omitempty"`
 	Model           string         `json:"model,omitempty"`
-	PromptVersionID string         `json:"prompt_version_id,omitempty"`
+	PromptVersion   int            `json:"prompt_version,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
 	ProviderOptions map[string]any `json:"provider_options,omitempty"`
+}
+
+// PromoteRequest promotes an existing source revision to another environment.
+type PromoteRequest struct {
+	Environment       string `json:"environment"`
+	SourceEnvironment string `json:"source_environment"`
+	Revision          string `json:"revision"`
 }
 
 // RollbackRequest re-commits a past revision as a new one.

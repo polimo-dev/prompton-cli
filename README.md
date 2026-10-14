@@ -14,9 +14,15 @@ prompton login
 prompton projects create helpdesk
 prompton prompt create support_reply
 prompton prompt commit support_reply --file messages.json
-prompton deploy support_reply --model openai/gpt-4o-mini
+prompton deploy support_reply --provider openrouter --model google/gemini-3.8-flash
 prompton api-keys issue --name 'Helpdesk server'
 ```
+
+Readable provider/model, prompt version, deployment revision, promotion, and
+Decision prompt commands require the PromptOn readable-resource server contract.
+Older servers may accept a raw model string as an OpenRouter model while
+ignoring `--provider`; use this CLI with a server that supports the readable
+request fields documented below.
 
 ---
 
@@ -187,6 +193,22 @@ Conversation history is not committed as a PromptOn message slot; compose it in
 your app when you send the final provider request. The server validates the
 contract; deployed tool prompts require SDK 0.4.0 or newer.
 
+Decision prompts are committed from a JSON object with `kind: "decision"` and a
+`decision` object:
+
+```json
+{
+  "kind": "decision",
+  "engine": "liquid",
+  "decision": {
+    "state": "{{ input }}",
+    "questions": {
+      "is_bug": {"type": "noul", "instructions": "Is this a bug?"}
+    }
+  }
+}
+```
+
 Versions are immutable, and committing one changes nothing at runtime. A
 version goes live only when a deployment pins it.
 
@@ -197,11 +219,12 @@ separate prompt.
 ### 4. Pin a deployment — the app's current model, unchanged
 
 ```sh
-prompton models register openai/gpt-4o-mini    # optional; deploy does it too
+prompton models register google/gemini-3.8-flash --provider openrouter    # optional; deploy does it too
 
 prompton deploy support_reply \
   --environment production \
-  --model openai/gpt-4o-mini \
+  --provider openrouter \
+  --model google/gemini-3.8-flash \
   --params '{"temperature":0.3}' \
   --version 1
 ```
@@ -210,13 +233,12 @@ A revision is a pin, not a router: one model, its params, and one prompt
 version. Committing it makes it the live configuration for that
 (prompt, environment) pair.
 
-- `--model` takes a provider string or a catalog UUID. A provider string that
-  is not in the catalog is registered on the way past.
-- `--version` takes a version number, the word `latest`, or a version UUID.
+- `--provider` defaults to `openrouter`.
+- `--model` takes the provider-native model name, such as `google/gemini-3.8-flash`.
+- `--version` takes a positive version number or the word `latest`.
   Omit `--version` to pin the newest committed prompt version.
-- Promoting staging to production is the same command with a different
-  `--environment` and the same version — staging can carry its own params, say
-  `--params '{"temperature":0.7}'` against the same model.
+- Promote an already-live staging revision with
+  `prompton promote support_reply --environment production --source-environment staging --revision v2026.09.30-2`.
 
 ### 5. Issue the SDK key
 
@@ -303,28 +325,29 @@ Every command accepts the global flags below.
 | `prompton prompt list` | Every call site in the project |
 | `prompton prompt get <key>` | The prompt with its versions and live deployments |
 | `prompton prompt contract <key> [--candidate-file F] --json` | Read live, draft, and optional proposed response contracts without saving or deploying |
-| `prompton prompt create <key> [--name N] [--description D] [--input-schema-file F] [--default-params JSON] [--tags a,b]` | Creates a chat prompt |
+| `prompton prompt create <key> [--kind chat\|decision] [--name N] [--description D] [--input-schema-file F] [--default-params JSON] [--tags a,b]` | Creates a Chat or Decision prompt |
 | `prompton prompt update <key> [--name N] [--description D] [--tags a,b] [--input-schema-file F] [--default-params JSON]` | Changes only the fields given; schema and params are replaced, not merged |
 
 ### Prompts
 
 | Command | What it does |
 |---|---|
-| `prompton prompt commit <prompt> --file F [--engine liquid\|raw] [--message M]` | Commits an immutable chat version |
+| `prompton prompt commit <prompt> --file F [--engine liquid\|raw] [--message M]` | Commits an immutable Chat or Decision version |
 
 ### Models
 
 | Command | What it does |
 |---|---|
 | `prompton models list` | The project's catalog |
-| `prompton models register <model-id> [--display-name N] [--provider P]` | Adds a provider model; OpenRouter details are filled in server-side |
+| `prompton models register <model> [--provider P] [--display-name N]` | Adds a provider model; OpenRouter details are filled in server-side |
 
 ### Deployments
 
 | Command | What it does |
 |---|---|
-| `prompton deploy <prompt> --model M [--environment E] [--params JSON] [--provider-options JSON] [--version latest\|N\|UUID]` | Commits a revision |
+| `prompton deploy <prompt> --model M [--provider P] [--environment E] [--params JSON] [--provider-options JSON] [--version latest\|N]` | Commits a revision |
 | `prompton deployments list <prompt> [--environment E]` | Live revisions, or one environment's history |
+| `prompton promote <prompt> --environment E --source-environment E --revision vYYYY.MM.DD-N` | Promotes a source revision into a target environment |
 | `prompton rollback <prompt> --revision vYYYY.MM.DD-N [--environment E]` | Re-commits a past revision |
 
 ### Keys
@@ -467,7 +490,7 @@ set `PTN_TOKEN` without a config file existing at all:
 
 ```sh
 PTN_TOKEN=$CI_SECRET PTN_ORG=acme \
-  prompton deploy support_reply --model openai/gpt-4o-mini --json
+  prompton deploy support_reply --provider openrouter --model google/gemini-3.8-flash --json
 ```
 
 ---

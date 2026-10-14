@@ -658,6 +658,26 @@ func TestPromptCreateSendsSchemaAndParams(t *testing.T) {
 	}
 }
 
+func TestPromptCreateSendsDecisionKind(t *testing.T) {
+	h := newHarness(t)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts", 201,
+		`{"id":"u1","key":"classify","name":"Classify","kind":"decision",
+		  "description":null,"input_schema":[],"default_params":{},"tags":[],"created_at":""}`)
+
+	got := h.run("prompt", "create", "classify", "--kind", "decision", "--name", "Classify")
+	if got.code != 0 {
+		t.Fatalf("exit = %d: %s", got.code, got.stderr)
+	}
+	body := h.lastBody()
+	if body["kind"] != "decision" || body["key"] != "classify" {
+		t.Errorf("body = %v", body)
+	}
+	if !strings.Contains(got.stdout, "decision") {
+		t.Errorf("stdout = %q", got.stdout)
+	}
+}
+
 func TestPromptCreateRejectsAnUnknownKind(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
@@ -734,9 +754,9 @@ func TestPromptGetShowsPromptsAndDeployments(t *testing.T) {
 		  "input_schema":[{"name":"question","type":"string","required":true,"description":null}],
 		  "default_params":{"temperature":0.5},"tags":[],"created_at":"2026-09-01T10:00:00Z",
 		  "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":[],"created_at":""}],
-		  "deployments":[{"id":"d1","revision":"v2026.09.30-3","environment":"production","model_id":"m1",
-		    "model":"openai/gpt-4o-mini","params":{"temperature":0.4},"provider_options":{},
-		    "template_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}]}`)
+		  "deployments":[{"id":"d1","revision":"v2026.09.30-3","environment":"production","provider":"openrouter",
+		    "model":"openai/gpt-4o-mini","prompt_version_number":2,"params":{"temperature":0.4},"provider_options":{},
+		    "created_at":"2026-09-02T11:00:00Z"}]}`)
 
 	got := h.run("prompt", "get", "support_reply")
 	if got.code != 0 {
@@ -873,6 +893,59 @@ func TestPromptCommitRejectsMessageSlotsBeforeHTTP(t *testing.T) {
 	}
 }
 
+func TestPromptCommitDecisionPreservesNativeDecisionJSON(t *testing.T) {
+	h := newHarness(t)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/classify/versions", 201,
+		`{"id":"v1","prompt_template_id":"p1","number":1,"kind":"decision","engine":"liquid",
+		  "decision":{"state":{"id":9007199254740993},"questions":{"is_bug":{"type":"noul","instructions":"Is this a bug?"}}},
+		  "messages":[],"text_template":null,"detected_variables":["input"],"message":"decision","content_sha256":"x","created_at":""}`)
+
+	file := writeTemp(t, "decision.json", `{"kind":"decision","engine":"liquid","decision":{"state":{"id":9007199254740993},"questions":{"is_bug":{"type":"noul","instructions":"Is this a bug?","criteria":{"0":null,"1":null}}}}}`)
+
+	got := h.run("prompt", "commit", "classify", "--file", file, "--message", "decision", "--json")
+	if got.code != 0 {
+		t.Fatalf("exit = %d: %s", got.code, got.stderr)
+	}
+	if !strings.Contains(h.requests[0].Body, "9007199254740993") {
+		t.Fatalf("decision precision changed in request: %s", h.requests[0].Body)
+	}
+	body := h.lastBody()
+	if body["kind"] != "decision" {
+		t.Fatalf("body = %v", body)
+	}
+	if _, ok := body["messages"]; ok {
+		t.Errorf("decision commits must not send messages: %v", body)
+	}
+	if !strings.Contains(got.stdout, `"kind": "decision"`) || !strings.Contains(got.stdout, "9007199254740993") {
+		t.Errorf("stdout lost decision fields or precision: %s", got.stdout)
+	}
+}
+
+func TestPromptCommitRejectsMalformedDecisionBeforeHTTP(t *testing.T) {
+	for _, content := range []string{
+		`{"kind":"decision","decision":`,
+		`{"kind":"decision"}`,
+		`{"kind":"decision","decision":[]}`,
+		`{"kind":"decision","decision":{"state":"{{ input }}","questions":{}}}`,
+		`{"kind":"decision","decision":{"state":"{{ input }}","questions":{"ok":{"type":"noul"}}},"messages":[{"role":"user","content":"x"}]}`,
+		`{"kind":"chat","decision":{"state":"{{ input }}","questions":{"ok":{"type":"noul"}}}}`,
+	} {
+		t.Run(content, func(t *testing.T) {
+			h := newHarness(t)
+			h.login(config.File{Org: "personal", Project: "helpdesk"})
+			file := writeTemp(t, "bad-decision.json", content)
+			got := h.run("prompt", "commit", "classify", "--file", file)
+			if got.code != 2 {
+				t.Fatalf("exit = %d, want 2: %s", got.code, got.stderr)
+			}
+			if len(h.requests) != 0 {
+				t.Fatalf("malformed decision should fail before HTTP, got %v", h.paths())
+			}
+		})
+	}
+}
+
 func TestPromptCommitWithoutAFileIsAUsageError(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
@@ -896,21 +969,54 @@ func TestModelsRegister(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/models", 201,
-		`{"id":"m1","provider":"openrouter","model_id":"openai/gpt-4o-mini",
+		`{"id":"m1","provider":"openrouter","model_id":"google/gemini-3.8-flash",
 		  "display_name":"GPT-4o-mini","metadata":{},"provider_options":{},
 		  "pricing":{"input_per_m":0.15,"output_per_m":0.6,"currency":"USD","unit":"token"},
 		  "context_length":128000,"capabilities":["tools"],"status":"active","created_at":""}`)
 
-	got := h.run("models", "register", "openai/gpt-4o-mini")
+	got := h.run("models", "register", "google/gemini-3.8-flash")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	body := h.lastBody()
-	if len(body) != 1 || body["model_id"] != "openai/gpt-4o-mini" {
-		t.Errorf("body = %v, want only model_id so the server can enrich it", body)
+	if len(body) != 2 || body["provider"] != "openrouter" || body["model"] != "google/gemini-3.8-flash" {
+		t.Errorf("body = %v, want provider and model so the server can enrich it", body)
 	}
 	if !strings.Contains(got.stdout, "m1") {
 		t.Errorf("stdout = %q, want the catalog id a deployment will pin", got.stdout)
+	}
+}
+
+func TestModelsRegisterJSONPreservesModelIDResponse(t *testing.T) {
+	h := newHarness(t)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/models", 201,
+		`{"id":"m1","provider":"openrouter","model_id":"google/gemini-3.8-flash",
+		  "display_name":"Gemini Flash","metadata":{},"provider_options":{},"pricing":null,
+		  "context_length":0,"capabilities":[],"status":"active","created_at":""}`)
+
+	got := h.run("models", "register", "google/gemini-3.8-flash", "--json")
+	if got.code != 0 {
+		t.Fatalf("exit = %d: %s", got.code, got.stderr)
+	}
+	payload := got.json(t)
+	if payload["model_id"] != "google/gemini-3.8-flash" {
+		t.Errorf("payload = %v, want server response provider name under model_id", payload)
+	}
+	if _, ok := payload["model"]; ok {
+		t.Errorf("payload = %v, must not invent a model response alias", payload)
+	}
+}
+
+func TestModelsRegisterRejectsUUIDModelBeforeHTTP(t *testing.T) {
+	h := newHarness(t)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	got := h.run("models", "register", "11111111-1111-4111-8111-111111111111")
+	if got.code != 2 {
+		t.Fatalf("exit = %d, want 2: %s", got.code, got.stderr)
+	}
+	if len(h.requests) != 0 {
+		t.Errorf("UUID model should fail before HTTP, got %v", h.paths())
 	}
 }
 
@@ -930,96 +1036,94 @@ func TestModelsListJSON(t *testing.T) {
 	if len(models) != 1 {
 		t.Fatalf("models = %v", models)
 	}
+	first := models[0].(map[string]any)
+	if first["model_id"] != "openai/gpt-4o-mini" {
+		t.Errorf("model payload = %v, want provider name in model_id", first)
+	}
+	if _, ok := first["model"]; ok {
+		t.Errorf("model payload = %v, must not invent a model response alias", first)
+	}
 }
 
 // ---- deploy ---------------------------------------------------------------
 
-const deployReply = `{"id":"d1","revision":"v2026.09.30-4","environment":"production","model_id":"11111111-1111-4111-8111-111111111111",
-  "model":"openai/gpt-4o-mini","params":{"temperature":0.4},"provider_options":{},
-  "template_pins":{"default":"22222222-2222-4222-8222-222222222222"},"created_at":"2026-09-02T12:00:00Z"}`
+const deployReply = `{"id":"d1","revision":"v2026.09.30-4","environment":"production","provider":"openrouter",
+  "model_id":"m1","model":"google/gemini-3.8-flash","prompt_version_number":2,
+  "template_pins":{"default":"v2"},"params":{"temperature":0.4},"provider_options":{},
+  "created_at":"2026-09-02T12:00:00Z"}`
 
-func TestDeployWithAProviderStringSendsModel(t *testing.T) {
+func TestDeploySendsReadableProviderModelAndVersion(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply",
 		"--environment", "production",
-		"--model", "openai/gpt-4o-mini",
+		"--provider", "openrouter",
+		"--model", "google/gemini-3.8-flash",
+		"--version", "2",
 		"--params", `{"temperature":0.4}`)
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	body := h.lastBody()
-	if body["model"] != "openai/gpt-4o-mini" {
+	if body["provider"] != "openrouter" || body["model"] != "google/gemini-3.8-flash" || body["prompt_version"] != float64(2) {
 		t.Errorf("body = %v", body)
 	}
-	if _, ok := body["model_id"]; ok {
-		t.Errorf("a provider string must not be sent as model_id: %v", body)
+	for _, retired := range []string{"model_id", "prompt_version_id", "template_pins"} {
+		if _, ok := body[retired]; ok {
+			t.Errorf("%s must not be sent: %v", retired, body)
+		}
 	}
 	if body["params"].(map[string]any)["temperature"] != 0.4 {
 		t.Errorf("params = %v", body["params"])
 	}
 }
 
-func TestDeployWithACatalogUUIDSendsModelID(t *testing.T) {
+func TestDeployRejectsModelUUIDBeforeHTTP(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply", "--model", "11111111-1111-4111-8111-111111111111")
-	if got.code != 0 {
-		t.Fatalf("exit = %d: %s", got.code, got.stderr)
+	if got.code != 2 {
+		t.Fatalf("exit = %d, want 2: %s", got.code, got.stderr)
 	}
-	body := h.lastBody()
-	if body["model_id"] != "11111111-1111-4111-8111-111111111111" {
-		t.Errorf("body = %v", body)
-	}
-	if _, ok := body["model"]; ok {
-		t.Errorf("a UUID must not also be sent as a provider string: %v", body)
+	if len(h.requests) != 0 {
+		t.Fatalf("UUID model should fail before HTTP, got %v", h.paths())
 	}
 }
 
-func TestDeployResolvesVersionNumbersToUUID(t *testing.T) {
+func TestDeployVersionNumberDoesNotFetchPrompt(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply", 200,
-		`{"id":"u1","key":"support_reply","name":"d","kind":"chat","description":null,
-		  "input_schema":[],"default_params":{},"tags":[],"created_at":"",
-		  "versions":[{"id":"v-two","number":2,"message":null,"detected_variables":[],"created_at":""},
-		              {"id":"v-one","number":1,"message":null,"detected_variables":[],"created_at":""}]}`)
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "google/gemini-3.8-flash",
 		"--version", "1")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
-	if got := h.lastBody()["prompt_version_id"]; got != "v-one" {
-		t.Errorf("prompt_version_id = %v, want version 1 resolved to its UUID", got)
+	if len(h.requests) != 1 {
+		t.Errorf("requests = %v, want no prompt lookup", h.paths())
 	}
-	if _, ok := h.lastBody()["template_pins"]; ok {
-		t.Errorf("deploy must not send legacy template_pins: %v", h.lastBody())
+	if got := h.lastBody()["prompt_version"]; got != float64(1) {
+		t.Errorf("prompt_version = %v, want readable version number", got)
 	}
 }
 
-func TestDeployWithUUIDVersionSkipsTheLookup(t *testing.T) {
+func TestDeployRejectsUUIDVersionBeforeHTTP(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "google/gemini-3.8-flash",
 		"--version", "22222222-2222-4222-8222-222222222222")
-	if got.code != 0 {
-		t.Fatalf("exit = %d: %s", got.code, got.stderr)
+	if got.code != 2 {
+		t.Fatalf("exit = %d, want 2: %s", got.code, got.stderr)
 	}
-	if len(h.requests) != 1 {
-		t.Errorf("requests = %v, want no prompt fetch when version is already a UUID", h.paths())
-	}
-	if got := h.lastBody()["prompt_version_id"]; got != "22222222-2222-4222-8222-222222222222" {
-		t.Errorf("prompt_version_id = %v", got)
+	if len(h.requests) != 0 {
+		t.Errorf("UUID version should fail before HTTP, got %v", h.paths())
 	}
 }
 
@@ -1029,7 +1133,7 @@ func TestDeployLatestVersionLeavesSelectionToServer(t *testing.T) {
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
 	got := h.run("deploy", "support_reply",
-		"--model", "openai/gpt-4o-mini",
+		"--model", "google/gemini-3.8-flash",
 		"--version", "latest")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
@@ -1037,7 +1141,7 @@ func TestDeployLatestVersionLeavesSelectionToServer(t *testing.T) {
 	if len(h.requests) != 1 {
 		t.Errorf("requests = %v, want no prompt fetch for latest", h.paths())
 	}
-	if _, ok := h.lastBody()["prompt_version_id"]; ok {
+	if _, ok := h.lastBody()["prompt_version"]; ok {
 		t.Errorf("latest is represented by omission, body = %v", h.lastBody())
 	}
 }
@@ -1045,10 +1149,6 @@ func TestDeployLatestVersionLeavesSelectionToServer(t *testing.T) {
 func TestDeployRejectsAMalformedVersion(t *testing.T) {
 	h := newHarness(t)
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
-	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply", 200,
-		`{"id":"u1","key":"support_reply","name":"d","kind":"chat","description":null,
-		  "input_schema":[],"default_params":{},"tags":[],"created_at":"",
-		  "versions":[{"id":"v1","number":1,"message":null,"detected_variables":[],"created_at":""}]}`)
 
 	got := h.run("deploy", "support_reply", "--model", "m", "--version", "default")
 	if got.code != 2 {
@@ -1076,13 +1176,23 @@ func TestDeployJSON(t *testing.T) {
 	h.login(config.File{Org: "personal", Project: "helpdesk"})
 	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments", 201, deployReply)
 
-	got := h.run("deploy", "support_reply", "--model", "openai/gpt-4o-mini", "--json")
+	got := h.run("deploy", "support_reply", "--model", "google/gemini-3.8-flash", "--json")
 	if got.code != 0 {
 		t.Fatalf("exit = %d: %s", got.code, got.stderr)
 	}
 	payload := got.json(t)
 	if payload["revision"] != "v2026.09.30-4" {
 		t.Errorf("payload = %v", payload)
+	}
+	if payload["model_id"] != "m1" || payload["model"] != "google/gemini-3.8-flash" {
+		t.Errorf("payload = %v, want response identities and provider model preserved", payload)
+	}
+	pins, ok := payload["template_pins"].(map[string]any)
+	if !ok || pins["default"] != "v2" {
+		t.Errorf("template_pins = %v, want response pins preserved", payload["template_pins"])
+	}
+	if payload["prompt_version_number"] != float64(2) || payload["provider"] != "openrouter" {
+		t.Errorf("payload = %v, want readable response pins preserved", payload)
 	}
 }
 
@@ -1136,6 +1246,42 @@ func TestRollback(t *testing.T) {
 	}
 	if !strings.Contains(got.stdout, "restored from v2026.09.30-2") {
 		t.Errorf("stdout = %q, want it clear that a new revision was made", got.stdout)
+	}
+}
+
+func TestPromoteSendsReadableRevisionFields(t *testing.T) {
+	h := newHarness(t)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	h.handle("/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments/promote", 200, deployReply)
+
+	got := h.run("promote", "support_reply",
+		"--environment", "production",
+		"--source-environment", "staging",
+		"--revision", "v2026.09.30-3")
+	if got.code != 0 {
+		t.Fatalf("exit = %d: %s", got.code, got.stderr)
+	}
+	body := h.lastBody()
+	if body["environment"] != "production" || body["source_environment"] != "staging" || body["revision"] != "v2026.09.30-3" {
+		t.Errorf("body = %v", body)
+	}
+	if !strings.Contains(got.stdout, "promoted from staging v2026.09.30-3") {
+		t.Errorf("stdout = %q", got.stdout)
+	}
+}
+
+func TestPromoteRejectsUUIDRevisionBeforeHTTP(t *testing.T) {
+	h := newHarness(t)
+	h.login(config.File{Org: "personal", Project: "helpdesk"})
+	got := h.run("promote", "support_reply",
+		"--environment", "production",
+		"--source-environment", "staging",
+		"--revision", "22222222-2222-4222-8222-222222222222")
+	if got.code != 2 {
+		t.Fatalf("exit = %d, want 2: %s", got.code, got.stderr)
+	}
+	if len(h.requests) != 0 {
+		t.Errorf("UUID revision should fail before HTTP, got %v", h.paths())
 	}
 }
 

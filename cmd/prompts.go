@@ -29,11 +29,15 @@ func newPromptCommitCommand(g *globals) *cobra.Command {
 Versions are immutable and committing alone changes nothing at runtime — a
 version goes live when a deployment revision pins it.
 
-The file is read as chat messages when it holds a JSON array (or an object with
+The file is read as Chat messages when it holds a JSON array (or an object with
 a "messages" array). An object can also include tools, output and engine.
-Native tool-call fields are preserved. Conversation history belongs in your app's
-provider request, not in PromptOn messages. Any other non-empty file is committed
-as one user message.
+Native tool-call fields are preserved. Decision files use a JSON object with
+kind "decision" and decision: {state, questions}. Conversation history belongs
+in your app's provider request, not in PromptOn messages.
+
+Decision prompts are committed from an object with kind "decision" and a
+decision object containing state and questions. Any other non-empty file is
+committed as one user message.
 Pass "-" as the file to read stdin.`,
 		Example: "  " + meta.Name + " prompt commit support_reply \\\n" +
 			"      --file messages.json --message 'migrated from the app'",
@@ -85,7 +89,7 @@ Pass "-" as the file to read stdin.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&file, "file", "", "messages JSON or plain text to commit (\"-\" for stdin)")
+	cmd.Flags().StringVar(&file, "file", "", "Chat/Decision JSON or plain text to commit (\"-\" for stdin)")
 	cmd.Flags().StringVar(&engine, "engine", "", "template engine: liquid (default) or raw")
 	cmd.Flags().StringVar(&message, "message", "", "commit message explaining the change")
 	cmd.Flags().StringVar(&format, "format", "auto", "how to read the file: auto or messages")
@@ -104,11 +108,17 @@ func buildCommit(raw []byte, format, name string) (api.CommitVersionRequest, err
 		}
 		return commitWithMetadata(raw, msgs, name)
 	case "auto", "":
+		if req, ok, err := decodeDecisionCommit(raw, name); ok || err != nil {
+			return req, err
+		}
 		if msgs, err := decodeMessages(raw); err == nil {
 			return commitWithMetadata(raw, msgs, name)
 		} else {
 			var slotErr *messageSlotError
 			if errors.As(err, &slotErr) {
+				return api.CommitVersionRequest{}, usagef("%s: %v", name, err)
+			}
+			if looksLikeJSONDocument(raw) {
 				return api.CommitVersionRequest{}, usagef("%s: %v", name, err)
 			}
 		}
@@ -119,6 +129,18 @@ func buildCommit(raw []byte, format, name string) (api.CommitVersionRequest, err
 	default:
 		return api.CommitVersionRequest{}, usagef("--format must be auto or messages")
 	}
+}
+
+func looksLikeJSONDocument(raw []byte) bool {
+	trimmed := strings.TrimSpace(string(raw))
+	if strings.HasPrefix(trimmed, "[") {
+		return true
+	}
+	if strings.HasPrefix(trimmed, "{") {
+		afterBrace := strings.TrimSpace(strings.TrimPrefix(trimmed, "{"))
+		return strings.HasPrefix(afterBrace, "\"")
+	}
+	return false
 }
 
 type messageSlotError struct {
@@ -145,6 +167,86 @@ func commitWithMetadata(raw []byte, messages []api.Message, name string) (api.Co
 	return req, nil
 }
 
+func decodeDecisionCommit(raw []byte, name string) (api.CommitVersionRequest, bool, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed[0] != '{' {
+		return api.CommitVersionRequest{}, false, nil
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(trimmed), &fields); err != nil || fields == nil {
+		if looksLikeJSONDocument(raw) {
+			return api.CommitVersionRequest{}, true, usagef("%s: malformed JSON document", name)
+		}
+		return api.CommitVersionRequest{}, false, nil
+	}
+
+	rawKind, hasKind := fields["kind"]
+	rawDecision, hasDecision := fields["decision"]
+	if !hasKind && !hasDecision {
+		return api.CommitVersionRequest{}, false, nil
+	}
+	if !hasKind {
+		return api.CommitVersionRequest{}, true, usagef("%s: decision commits require kind %q", name, "decision")
+	}
+
+	var kind string
+	if err := json.Unmarshal(rawKind, &kind); err != nil {
+		return api.CommitVersionRequest{}, true, usagef("%s: kind must be chat or decision", name)
+	}
+	switch kind {
+	case "decision":
+		if _, hasMessages := fields["messages"]; hasMessages {
+			return api.CommitVersionRequest{}, true, usagef("%s: decision commits must not include messages", name)
+		}
+		if _, hasTools := fields["tools"]; hasTools {
+			return api.CommitVersionRequest{}, true, usagef("%s: decision commits must not include tools", name)
+		}
+		if _, hasOutput := fields["output"]; hasOutput {
+			return api.CommitVersionRequest{}, true, usagef("%s: decision commits must not include output", name)
+		}
+		decision, err := validateDecisionObject(rawDecision)
+		if err != nil {
+			return api.CommitVersionRequest{}, true, usagef("%s: %v", name, err)
+		}
+		var req api.CommitVersionRequest
+		if err := json.Unmarshal([]byte(trimmed), &req); err != nil {
+			return api.CommitVersionRequest{}, true, usagef("%s: %v", name, err)
+		}
+		req.Kind = "decision"
+		req.Decision = decision
+		req.Messages = nil
+		req.Tools = nil
+		req.Output = nil
+		return req, true, nil
+	case "chat":
+		if hasDecision {
+			return api.CommitVersionRequest{}, true, usagef("%s: chat commits must not include decision", name)
+		}
+		return api.CommitVersionRequest{}, false, nil
+	default:
+		return api.CommitVersionRequest{}, true, usagef("%s: kind must be chat or decision", name)
+	}
+}
+
+func validateDecisionObject(raw json.RawMessage) (json.RawMessage, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, fmt.Errorf("decision commits require a decision object with state and questions")
+	}
+	var decision map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &decision); err != nil || decision == nil {
+		return nil, fmt.Errorf("decision commits require a decision object with state and questions")
+	}
+	if _, ok := decision["state"]; !ok {
+		return nil, fmt.Errorf("decision object requires state")
+	}
+	var questions map[string]json.RawMessage
+	if err := json.Unmarshal(decision["questions"], &questions); err != nil || len(questions) == 0 {
+		return nil, fmt.Errorf("decision object requires non-empty questions")
+	}
+	return raw, nil
+}
+
 // decodeMessages accepts a bare array of messages or an object wrapping one,
 // so a file lifted straight out of a GET response also works.
 func decodeMessages(raw []byte) ([]api.Message, error) {
@@ -160,10 +262,15 @@ func decodeMessages(raw []byte) ([]api.Message, error) {
 		}
 	case '{':
 		var wrapper struct {
-			Messages []api.Message `json:"messages"`
+			Kind     string          `json:"kind"`
+			Messages []api.Message   `json:"messages"`
+			Decision json.RawMessage `json:"decision"`
 		}
 		if err := json.Unmarshal([]byte(trimmed), &wrapper); err != nil {
 			return nil, err
+		}
+		if wrapper.Kind == "decision" || len(wrapper.Decision) > 0 {
+			return nil, fmt.Errorf("decision commits require kind %q and a decision object with state and questions", "decision")
 		}
 		msgs = wrapper.Messages
 	default:

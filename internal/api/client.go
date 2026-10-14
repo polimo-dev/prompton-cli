@@ -335,6 +335,16 @@ func (c *Client) CreateDeployment(ctx context.Context, org, project, prompt stri
 	return &out, nil
 }
 
+// Promote commits a revision from one environment into another environment.
+func (c *Client) Promote(ctx context.Context, org, project, prompt string, req PromoteRequest) (*Deployment, error) {
+	var out Deployment
+	path := deploymentsPath(org, project, prompt) + "/promote"
+	if err := c.do(ctx, http.MethodPost, path, req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Rollback re-commits a past revision, which produces a new higher-numbered
 // revision rather than rewinding history.
 func (c *Client) Rollback(ctx context.Context, org, project, prompt string, req RollbackRequest) (*Deployment, error) {

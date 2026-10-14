@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,6 +19,7 @@ func newDeployCommand(g *globals) *cobra.Command {
 	var (
 		environment     string
 		model           string
+		provider        string
 		params          string
 		providerOptions string
 		version         string
@@ -30,21 +32,23 @@ func newDeployCommand(g *globals) *cobra.Command {
 A revision is a pin, not a router — the moment it is committed it is the live
 configuration for that (prompt, environment).
 
---model takes either a catalog UUID or a provider string like
-"openai/gpt-4o-mini"; a provider string that is not in the catalog yet is
-registered on the way past.
+--provider and --model identify the provider model to pin. The model is the
+provider-native name, for example "google/gemini-3.8-flash".
 
---version takes a version number, the word "latest", or a version UUID.
+--version takes a positive prompt version number or the word "latest".
 Omitting --version pins the latest committed prompt version.
 
-Promoting is the same command against another environment with the same version.`,
+Use prompton promote to copy a readable source revision into another environment.`,
 		Example: "  " + meta.Name + " deploy support_reply --environment production \\\n" +
-			"      --model openai/gpt-4o-mini --params '{\"temperature\":0.3}' \\\n" +
+			"      --provider openrouter --model google/gemini-3.8-flash --params '{\"temperature\":0.3}' \\\n" +
 			"      --version 1",
 		Args: exactArgs(1, "<prompt>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(model) == "" {
-				return usagef("--model is required: a catalog UUID or a provider model string")
+				return usagef("--model is required: a provider-native model name")
+			}
+			if isUUID(model) {
+				return usagef("--model must be a provider-native model name, not a UUID")
 			}
 			client, _, err := g.client()
 			if err != nil {
@@ -65,32 +69,25 @@ Promoting is the same command against another environment with the same version.
 				return err
 			}
 
-			promptVersionID := ""
+			promptVersion := 0
 			if version != "" && !strings.EqualFold(version, "latest") {
 				if isUUID(version) {
-					promptVersionID = version
-				} else {
-					promptRecord, err := client.GetPrompt(cmd.Context(), org, project, prompt)
-					if err != nil {
-						return err
-					}
-					promptVersionID, err = resolveSingleVersion(version, promptRecord)
-					if err != nil {
-						return err
-					}
+					return usagef("--version must be a positive version number or \"latest\", not a UUID")
 				}
+				n, err := strconv.Atoi(version)
+				if err != nil || n < 1 {
+					return usagef("--version must be a positive version number or \"latest\"")
+				}
+				promptVersion = n
 			}
 
 			req := api.CreateDeploymentRequest{
 				Environment:     environment,
-				PromptVersionID: promptVersionID,
+				Provider:        provider,
+				Model:           model,
+				PromptVersion:   promptVersion,
 				Params:          paramsMap,
 				ProviderOptions: optionsMap,
-			}
-			if isUUID(model) {
-				req.ModelID = model
-			} else {
-				req.Model = model
 			}
 
 			deployment, err := client.CreateDeployment(cmd.Context(), org, project, prompt, req)
@@ -106,21 +103,22 @@ Promoting is the same command against another environment with the same version.
 				{"Prompt", prompt},
 				{"Environment", deployment.Environment},
 				{"Revision", deployment.Revision},
+				{"Provider", deployment.Provider},
 				{"Model", deployment.Model},
-				{"Catalog id", deployment.ModelID},
+				{"Prompt version", promptVersionCell(deployment.PromptVersion)},
 				{"Params", output.Dash(output.Compact(deployment.Params))},
 				{"Provider options", output.Dash(output.Compact(deployment.ProviderOptions))},
-				{"Pins", output.Dash(output.CompactStrings(deployment.TemplatePins))},
 			})
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&environment, "environment", "", "environment slug (server default: production)")
-	cmd.Flags().StringVar(&model, "model", "", "catalog UUID or provider model string")
+	cmd.Flags().StringVar(&provider, "provider", "openrouter", "model provider")
+	cmd.Flags().StringVar(&model, "model", "", "provider-native model name")
 	cmd.Flags().StringVar(&params, "params", "", "JSON object of model params, layered over the prompt defaults")
 	cmd.Flags().StringVar(&providerOptions, "provider-options", "", "JSON object of provider options, layered over the model's")
-	cmd.Flags().StringVar(&version, "version", "", "prompt version to deploy: number, \"latest\", or UUID (server default: latest)")
+	cmd.Flags().StringVar(&version, "version", "", "prompt version to deploy: positive number or \"latest\" (server default: latest)")
 	return cmd
 }
 
@@ -214,9 +212,10 @@ configuration.`,
 				{"Prompt", args[0]},
 				{"Environment", deployment.Environment},
 				{"Revision", fmt.Sprintf("%s (restored from %s)", deployment.Revision, revision)},
+				{"Provider", deployment.Provider},
 				{"Model", deployment.Model},
+				{"Prompt version", promptVersionCell(deployment.PromptVersion)},
 				{"Params", output.Dash(output.Compact(deployment.Params))},
-				{"Pins", output.Dash(output.CompactStrings(deployment.TemplatePins))},
 			})
 			return nil
 		},
@@ -227,8 +226,78 @@ configuration.`,
 	return cmd
 }
 
+func newPromoteCommand(g *globals) *cobra.Command {
+	var (
+		environment       string
+		sourceEnvironment string
+		revision          string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "promote <prompt>",
+		Short: "Promote a source environment revision",
+		Long: `Promote commits a source environment's current revision into a target
+environment. It uses readable revision labels, never UUID aliases.`,
+		Example: "  " + meta.Name + " promote support_reply --environment production --source-environment staging --revision v2026.09.30-2",
+		Args:    exactArgs(1, "<prompt>"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(environment) == "" {
+				return usagef("--environment is required: the target environment slug")
+			}
+			if strings.TrimSpace(sourceEnvironment) == "" {
+				return usagef("--source-environment is required: the source environment slug")
+			}
+			if !cmd.Flags().Changed("revision") {
+				return usagef("--revision is required: the source revision label to promote")
+			}
+			if isUUID(revision) {
+				return usagef("--revision must be a revision label like v2026.09.30-1, not a UUID")
+			}
+			if !revisionLabelPattern.MatchString(revision) {
+				return usagef("--revision must look like v2026.09.30-1")
+			}
+			client, _, err := g.client()
+			if err != nil {
+				return err
+			}
+			org, project, err := g.scope()
+			if err != nil {
+				return err
+			}
+
+			deployment, err := client.Promote(cmd.Context(), org, project, args[0], api.PromoteRequest{
+				Environment:       environment,
+				SourceEnvironment: sourceEnvironment,
+				Revision:          revision,
+			})
+			if err != nil {
+				return err
+			}
+
+			p := g.printer()
+			if g.asJSON {
+				return p.PrintJSON(deployment)
+			}
+			p.Fields([][2]string{
+				{"Prompt", args[0]},
+				{"Environment", deployment.Environment},
+				{"Revision", fmt.Sprintf("%s (promoted from %s %s)", deployment.Revision, sourceEnvironment, revision)},
+				{"Provider", deployment.Provider},
+				{"Model", deployment.Model},
+				{"Prompt version", promptVersionCell(deployment.PromptVersion)},
+			})
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&environment, "environment", "", "target environment slug")
+	cmd.Flags().StringVar(&sourceEnvironment, "source-environment", "", "source environment slug")
+	cmd.Flags().StringVar(&revision, "revision", "", "source revision label")
+	return cmd
+}
+
 func deploymentHeaders() []string {
-	return []string{"ENVIRONMENT", "REV", "MODEL", "PARAMS", "PINS", "CREATED"}
+	return []string{"ENVIRONMENT", "REV", "PROVIDER", "MODEL", "PROMPT VERSION", "PARAMS", "CREATED"}
 }
 
 func deploymentRows(deployments []api.Deployment) [][]string {
@@ -237,11 +306,19 @@ func deploymentRows(deployments []api.Deployment) [][]string {
 		rows = append(rows, []string{
 			d.Environment,
 			d.Revision,
+			d.Provider,
 			d.Model,
+			promptVersionCell(d.PromptVersion),
 			output.Dash(output.Compact(d.Params)),
-			output.Dash(output.Truncate(output.CompactStrings(d.TemplatePins), 46)),
 			output.Date(d.CreatedAt),
 		})
 	}
 	return rows
+}
+
+func promptVersionCell(n int) string {
+	if n == 0 {
+		return "-"
+	}
+	return output.Int(n)
 }

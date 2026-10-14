@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -64,19 +65,18 @@ func newModelsRegisterCommand(g *globals) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "register <model-id>",
+		Use:   "register <model>",
 		Short: "Add a provider model to the catalog",
 		Long: `Register a model by its provider-side id, for example
-"openai/gpt-4o-mini".
+"google/gemini-3.8-flash".
 
 For OpenRouter models the server fills in display name, pricing, context length
 and capabilities from the public catalog; registration still succeeds if that
 lookup fails.
 
-The catalog UUID this prints is what a deployment pins — ` + "`deploy --model`" +
-			` accepts either that UUID or the provider string.`,
-		Example: "  " + meta.Name + " models register openai/gpt-4o-mini",
-		Args:    exactArgs(1, "<model-id>"),
+Deployments use the same provider and model strings.`,
+		Example: "  " + meta.Name + " models register google/gemini-3.8-flash --provider openrouter",
+		Args:    exactArgs(1, "<model>"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, _, err := g.client()
 			if err != nil {
@@ -86,10 +86,16 @@ The catalog UUID this prints is what a deployment pins — ` + "`deploy --model`
 			if err != nil {
 				return err
 			}
-			modelID := args[0]
+			modelName := args[0]
+			if strings.TrimSpace(modelName) == "" {
+				return usagef("<model> is required")
+			}
+			if isUUID(modelName) {
+				return usagef("<model> must be a provider-native model name, not a UUID")
+			}
 
 			model, createErr := client.RegisterModel(cmd.Context(), org, project, api.RegisterModelRequest{
-				ModelID:     modelID,
+				Model:       modelName,
 				Provider:    provider,
 				DisplayName: displayName,
 			})
@@ -119,14 +125,14 @@ The catalog UUID this prints is what a deployment pins — ` + "`deploy --model`
 				})
 			}
 			if wasExisting {
-				return g.alreadyExists("model", modelID)
+				return g.alreadyExists("model", modelName)
 			}
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&displayName, "display-name", "", "human-facing name (looked up when omitted)")
-	cmd.Flags().StringVar(&provider, "provider", "", "openrouter (default), groq, openai, anthropic, or google")
+	cmd.Flags().StringVar(&provider, "provider", "openrouter", "openrouter (default), groq, openai, anthropic, or google")
 	return cmd
 }
 

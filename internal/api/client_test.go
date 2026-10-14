@@ -386,10 +386,10 @@ func TestGetPromptCarriesVersionsAndDeployments(t *testing.T) {
 	  "versions":[{"id":"v2","number":2,"message":"shorter","detected_variables":["question"],"created_at":"2026-09-02T…"},
 	              {"id":"v1","number":1,"message":"migrated from the app","detected_variables":["question"],"created_at":"2026-09-01T…"}],
 	  "deployments":[
-	    {"id":"d1","revision":"v2026.09.30-3","environment":"production","model_id":"m-uuid",
-	     "model":"openai/gpt-4o-mini","params":{"temperature":0.4},
+	    {"id":"d1","revision":"v2026.09.30-3","environment":"production","provider":"openrouter",
+	     "model":"openai/gpt-4o-mini","prompt_version_number":2,"params":{"temperature":0.4},
 	     "provider_options":{"only":["OpenAI"]},
-	     "template_pins":{"default":"v2"},"created_at":"2026-09-02T…"}
+	     "created_at":"2026-09-02T…"}
 	  ]}`)
 
 	got, err := s.client("tok").GetPrompt(ctx(), "personal", "helpdesk", "support_reply")
@@ -403,7 +403,7 @@ func TestGetPromptCarriesVersionsAndDeployments(t *testing.T) {
 	if got.Versions[0].Number != 2 {
 		t.Errorf("versions = %+v", got.Versions)
 	}
-	if len(got.Deployments) != 1 || got.Deployments[0].TemplatePins["default"] != "v2" {
+	if len(got.Deployments) != 1 || got.Deployments[0].PromptVersion != 2 {
 		t.Errorf("deployments = %+v", got.Deployments)
 	}
 }
@@ -529,7 +529,7 @@ func TestListModels(t *testing.T) {
 	}
 	m := got[0]
 	if m.ID != "0192m" || m.ModelID != "openai/gpt-4o-mini" {
-		t.Errorf("the catalog UUID and the provider string must not be confused: %+v", m)
+		t.Errorf("the response identity and provider model must not be confused: %+v", m)
 	}
 	if m.Pricing == nil || m.Pricing.InputPerM != 0.15 || m.Pricing.OutputPerM != 0.6 {
 		t.Errorf("pricing = %+v", m.Pricing)
@@ -539,17 +539,17 @@ func TestListModels(t *testing.T) {
 	}
 }
 
-func TestRegisterModelSendsOnlyModelIDWhenNothingElseIsGiven(t *testing.T) {
+func TestRegisterModelSendsReadableProviderAndModel(t *testing.T) {
 	s := newStub(t, 201, modelJSON)
 	got, err := s.client("tok").RegisterModel(ctx(), "personal", "helpdesk",
-		api.RegisterModelRequest{ModelID: "openai/gpt-4o-mini"})
+		api.RegisterModelRequest{Provider: "openrouter", Model: "openai/gpt-4o-mini"})
 	if err != nil {
 		t.Fatalf("RegisterModel: %v", err)
 	}
 	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/models")
 	body := c.bodyMap(t)
-	if len(body) != 1 || body["model_id"] != "openai/gpt-4o-mini" {
-		t.Errorf("request body = %v, want only model_id so the server can fill the rest", body)
+	if len(body) != 2 || body["provider"] != "openrouter" || body["model"] != "openai/gpt-4o-mini" {
+		t.Errorf("request body = %v, want provider and model so the server can fill the rest", body)
 	}
 	if got.DisplayName != "GPT-4o-mini" {
 		t.Errorf("display name = %q", got.DisplayName)
@@ -559,9 +559,10 @@ func TestRegisterModelSendsOnlyModelIDWhenNothingElseIsGiven(t *testing.T) {
 // ---- deployments ----------------------------------------------------------
 
 const deploymentJSON = `{"id":"0192d","revision":"v2026.09.30-3","environment":"production",
-  "model_id":"0192m","model":"openai/gpt-4o-mini","params":{"temperature":0.4},
+  "provider":"openrouter","model_id":"m1","model":"openai/gpt-4o-mini","prompt_version_number":2,
+  "template_pins":{"default":"v2"},"params":{"temperature":0.4},
   "provider_options":{"allow_fallbacks":false},
-  "template_pins":{"default":"v2"},"created_at":"2026-09-02T11:00:00Z"}`
+  "created_at":"2026-09-02T11:00:00Z"}`
 
 func TestListDeploymentsLive(t *testing.T) {
 	s := newStub(t, 200, `{"deployments":[`+deploymentJSON+`]}`)
@@ -573,8 +574,11 @@ func TestListDeploymentsLive(t *testing.T) {
 	if c.Query != "" {
 		t.Errorf("without --environment there must be no query string, got %q", c.Query)
 	}
-	if len(got) != 1 || got[0].Revision != "v2026.09.30-3" || got[0].TemplatePins["default"] != "v2" {
+	if len(got) != 1 || got[0].Revision != "v2026.09.30-3" || got[0].PromptVersion != 2 {
 		t.Errorf("deployments = %+v", got)
+	}
+	if got[0].ModelID != "m1" || got[0].TemplatePins["default"] != "v2" {
+		t.Errorf("deployment response fields = %+v", got[0])
 	}
 }
 
@@ -588,48 +592,69 @@ func TestListDeploymentsHistoryPassesEnvironment(t *testing.T) {
 	}
 }
 
-func TestCreateDeploymentWithCatalogUUID(t *testing.T) {
+func TestCreateDeploymentWithReadableReferences(t *testing.T) {
 	s := newStub(t, 201, deploymentJSON)
 	_, err := s.client("tok").CreateDeployment(ctx(), "personal", "helpdesk", "support_reply",
 		api.CreateDeploymentRequest{
-			Environment:     "production",
-			ModelID:         "0192m",
-			PromptVersionID: "v2",
-			Params:          map[string]any{"temperature": 0.4},
+			Environment:   "production",
+			Provider:      "openrouter",
+			Model:         "openai/gpt-4o-mini",
+			PromptVersion: 2,
+			Params:        map[string]any{"temperature": 0.4},
 		})
 	if err != nil {
 		t.Fatalf("CreateDeployment: %v", err)
 	}
 	c := s.expect(http.MethodPost, "/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments")
 	body := c.bodyMap(t)
-	if body["model_id"] != "0192m" {
+	if body["provider"] != "openrouter" || body["model"] != "openai/gpt-4o-mini" || body["prompt_version"] != float64(2) {
 		t.Errorf("request body = %v", body)
 	}
-	if _, ok := body["model"]; ok {
-		t.Errorf("only one of model_id/model may be sent, body = %v", body)
+	for _, retired := range []string{"model_id", "prompt_version_id", "template_pins"} {
+		if _, ok := body[retired]; ok {
+			t.Errorf("%s must not be sent, body = %v", retired, body)
+		}
 	}
 }
 
-func TestCreateDeploymentWithProviderString(t *testing.T) {
+func TestCreateDeploymentLatestOmitsPromptVersion(t *testing.T) {
 	s := newStub(t, 201, deploymentJSON)
 	_, err := s.client("tok").CreateDeployment(ctx(), "personal", "helpdesk", "uc",
-		api.CreateDeploymentRequest{Model: "openai/gpt-4o-mini"})
+		api.CreateDeploymentRequest{Provider: "openrouter", Model: "openai/gpt-4o-mini"})
 	if err != nil {
 		t.Fatalf("CreateDeployment: %v", err)
 	}
 	body := s.only().bodyMap(t)
-	if body["model"] != "openai/gpt-4o-mini" {
+	if body["provider"] != "openrouter" || body["model"] != "openai/gpt-4o-mini" {
 		t.Errorf("request body = %v", body)
 	}
-	if _, ok := body["template_pins"]; ok {
-		t.Errorf("omitted pins must stay omitted so the server pins the newest versions, body = %v", body)
+	if _, ok := body["prompt_version"]; ok {
+		t.Errorf("omitted version must stay omitted so the server pins the newest version, body = %v", body)
+	}
+}
+
+func TestPromote(t *testing.T) {
+	s := newStub(t, 200, deploymentJSON)
+	got, err := s.client("tok").Promote(ctx(), "personal", "helpdesk", "support_reply",
+		api.PromoteRequest{Environment: "production", SourceEnvironment: "staging", Revision: "v2026.09.30-3"})
+	if err != nil {
+		t.Fatalf("Promote: %v", err)
+	}
+	c := s.expect(http.MethodPost,
+		"/api/v1/orgs/personal/projects/helpdesk/prompts/support_reply/deployments/promote")
+	body := c.bodyMap(t)
+	if body["environment"] != "production" || body["source_environment"] != "staging" || body["revision"] != "v2026.09.30-3" {
+		t.Errorf("request body = %v", body)
+	}
+	if got.Revision != "v2026.09.30-3" {
+		t.Errorf("promote response = %+v", got)
 	}
 }
 
 func TestRollback(t *testing.T) {
-	s := newStub(t, 200, `{"id":"0192d","revision":"v2026.09.30-4","environment":"production","model_id":"0192m",
-	  "model":"openai/gpt-4o-mini","params":{},"provider_options":{},
-	  "template_pins":{"default":"v1"},"created_at":"2026-09-02T12:00:00Z"}`)
+	s := newStub(t, 200, `{"id":"0192d","revision":"v2026.09.30-4","environment":"production",
+	  "provider":"openrouter","model":"openai/gpt-4o-mini","prompt_version_number":1,
+	  "params":{},"provider_options":{},"created_at":"2026-09-02T12:00:00Z"}`)
 
 	got, err := s.client("tok").Rollback(ctx(), "personal", "helpdesk", "support_reply",
 		api.RollbackRequest{Environment: "production", Revision: "v2026.09.30-1"})

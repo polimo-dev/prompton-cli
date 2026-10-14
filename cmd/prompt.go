@@ -12,7 +12,10 @@ import (
 	"github.com/polimo-dev/prompton-cli/internal/output"
 )
 
-const promptKind = "chat"
+const (
+	promptKindChat     = "chat"
+	promptKindDecision = "decision"
+)
 
 func newPromptCommand(g *globals) *cobra.Command {
 	cmd := &cobra.Command{
@@ -167,8 +170,8 @@ and cannot be changed later.`,
 			if err != nil {
 				return err
 			}
-			if kind != promptKind {
-				return usagef("--kind must be chat")
+			if kind != promptKindChat && kind != promptKindDecision {
+				return usagef("--kind must be chat or decision")
 			}
 			params, err := parseJSONObject("default-params", defaultParams)
 			if err != nil {
@@ -218,8 +221,7 @@ and cannot be changed later.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&kind, "kind", promptKind, "prompt kind")
-	_ = cmd.Flags().MarkHidden("kind")
+	cmd.Flags().StringVar(&kind, "kind", promptKindChat, "prompt kind: chat or decision")
 	cmd.Flags().StringVar(&name, "name", "", "display name (defaults to the key)")
 	cmd.Flags().StringVar(&description, "description", "", "what this call site does")
 	cmd.Flags().StringVar(&inputSchemaFile, "input-schema-file", "", "JSON file declaring input variables (\"-\" for stdin)")

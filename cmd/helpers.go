@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,8 +17,8 @@ import (
 	"github.com/polimo-dev/prompton-cli/internal/config"
 )
 
-// uuidRE matches a canonical UUID. It is how the CLI tells a catalog model
-// UUID from a provider model string, and a version UUID from a version number.
+// uuidRE matches a canonical UUID so public readable-reference flags can reject
+// old UUID aliases before a request reaches the server.
 var uuidRE = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 func isUUID(s string) bool { return uuidRE.MatchString(s) }
@@ -68,29 +67,6 @@ func readInput(path string, stdin io.Reader) ([]byte, error) {
 		return nil, failf("read %s: %v", path, err)
 	}
 	return raw, nil
-}
-
-// resolveSingleVersion maps a version number to the prompt version UUID a
-// deployment needs. The prompt payload carries the most recent versions.
-func resolveSingleVersion(value string, prompt *api.Prompt) (string, error) {
-	versions := promptVersions(prompt)
-	if len(versions) == 0 {
-		return "", usagef("this prompt has no committed prompt version to deploy")
-	}
-
-	number, err := strconv.Atoi(value)
-	if err != nil {
-		return "", usagef("--version must be a version number, \"latest\", or a version UUID")
-	}
-	for _, v := range versions {
-		if v.Number == number {
-			return v.ID, nil
-		}
-	}
-	// GET /prompts/:key carries only the most recent versions, so an older
-	// number needs its UUID spelled out.
-	return "", usagef("this prompt has no version %d in the %d most recent versions — deploy it by version UUID instead",
-		number, len(versions))
 }
 
 func promptVersions(prompt *api.Prompt) []api.VersionSummary {
